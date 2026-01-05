@@ -9,89 +9,85 @@
 [![PyPI](https://img.shields.io/pypi/v/agent-resources?color=blue)](https://pypi.org/project/agent-resources/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[Try It Now](#-try-it-now) • [Install Resources](#-install-any-resource) • [Create Your Own](#-create-your-own-toolkit) • [Share](#-share-with-others)
+[Get Started](#-get-started-in-30-seconds) • [Install Resources](#-install-any-resource) • [Share](#-share-with-others) • [Community](#-community-resources)
 
 </div>
 
 ---
 
+## 🚀 Get Started in 30 Seconds
+
+Create your own shareable toolkit with one command:
+
+```bash
+uvx create-agent-resources-repo --github
+```
+
+**That's it.** You now have a GitHub repo with example resources that anyone can install.
+
+> Requires [GitHub CLI](https://cli.github.com/). Or run without `--github` to set up manually.
+
+### What You Get
+
+- A ready-to-use `agent-resources` repo on your GitHub
+- Example skill, command, and agent to learn from
+- Instant shareability — tell others to run:
+
+```bash
+uvx add-skill <your-username>/hello-world
+```
+
+### Add Your Own Resources
+
+Edit the files in your new repo:
+
+```
+your-username/agent-resources/
+└── .claude/
+    ├── skills/          # Skill folders with SKILL.md
+    ├── commands/        # Slash command .md files
+    └── agents/          # Sub-agent .md files
+```
+
+Push to GitHub. Done. No registry, no publishing step.
+
+---
+
 ## ⚡ Try It Now
 
-No installation needed. Just run:
+Want to see it in action first? Install a skill without any setup:
 
 ```bash
 uvx add-skill kasperjunge/hello-world
 ```
 
-**That's it.** The skill is now available in Claude Code.
+The skill is now available in your Claude Code.
 
 ---
 
 ## 📦 Install Any Resource
 
 ```bash
-uvx add-skill <github-username>/<skill-name>       # Skills
-uvx add-command <github-username>/<command-name>   # Slash commands
-uvx add-agent <github-username>/<agent-name>       # Sub-agents
+uvx add-skill <username>/<skill-name>       # Skills
+uvx add-command <username>/<command-name>   # Slash commands
+uvx add-agent <username>/<agent-name>       # Sub-agents
 ```
 
----
-
-## 🛠 Create Your Own Toolkit
-
-Build a personal collection of resources that travels with you.
-
-### Quick Start
-
-```bash
-uvx create-agent-resources-repo
-```
-
-This creates a ready-to-use `agent-resources/` directory with example skill, command, and agent.
-
-**With GitHub automation** (requires [gh CLI](https://cli.github.com/)):
-
-```bash
-uvx create-agent-resources-repo --github
-```
-
-Creates the repo, pushes to GitHub, and you're immediately shareable.
-
-### Manual Setup
-
-Or create the structure yourself — it's just a GitHub repo named **`agent-resources`**:
-
-```
-your-username/agent-resources/
-└── .claude/
-    ├── skills/
-    │   └── my-skill/
-    │       └── SKILL.md
-    ├── commands/
-    │   └── my-command.md
-    └── agents/
-        └── my-agent.md
-```
-
-### That's It
-
-Your resources are now installable:
-
-```bash
-uvx add-skill your-username/my-skill
-```
-
-No publishing. No registry. Push to GitHub and it works.
+**Options:**
+- `--global` / `-g` — Install to `~/.claude/` (available in all projects)
+- `--overwrite` — Replace existing resource
 
 ---
 
 ## 🌍 Share With Others
 
-Found a useful resource? Share it anywhere:
+The best part: sharing is just a message.
 
-> *"This skill saves me hours — try `uvx add-skill kasperjunge/hello-world`"*
+> *"This skill saves me hours — try `uvx add-skill yourname/cool-skill`"*
 
-**That's the entire onboarding.** One command, zero friction.
+**One command. Zero friction.** Anyone can install your resources instantly.
+
+The more you share, the more the community grows. Every resource you publish makes Claude Code better for everyone.
 
 ---
 
