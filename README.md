@@ -1,77 +1,97 @@
-# agent-resources
+<div align="center">
 
-CLI tools to install Claude Code resources (skills, commands, and sub-agents) from GitHub.
+# 🧩 agent-resources
 
-## Installation
+**Share and install Claude Code skills, commands, and agents with a single command.**
 
-### Option 1: Install all commands (pip)
+[![PyPI](https://img.shields.io/pypi/v/agent-resources?color=blue)](https://pypi.org/project/agent-resources/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-```bash
-pip install agent-resources
-```
+[Try It Now](#-try-it-now) • [Install Resources](#-install-any-resource) • [Create Your Own](#-create-your-own-toolkit) • [Share](#-share-with-others)
 
-This gives you all three commands:
-- `skill-add` - Install skills
-- `command-add` - Install slash commands
-- `agent-add` - Install sub-agents
+</div>
 
-### Option 2: One-off usage (uvx)
+---
 
-```bash
-# Either naming convention works:
-uvx skill-add <username>/<skill-name>
-uvx add-skill <username>/<skill-name>
+## ⚡ Try It Now
 
-uvx command-add <username>/<command-name>
-uvx add-command <username>/<command-name>
-
-uvx agent-add <username>/<agent-name>
-uvx add-agent <username>/<agent-name>
-```
-
-## Usage
+No installation needed. Just run:
 
 ```bash
-# Install a skill
-skill-add kasperjunge/analyze-paper
-
-# Install a slash command
-command-add kasperjunge/commit
-
-# Install a sub-agent
-agent-add kasperjunge/code-reviewer
-
-# Install globally (to ~/.claude/)
-skill-add kasperjunge/analyze-paper --global
-
-# Overwrite existing
-skill-add kasperjunge/analyze-paper --overwrite
+uvx skill-add kasperjunge/hello-world
 ```
 
-## Creating Your Own Resources
+**That's it.** The skill is now available in Claude Code.
 
-Create a GitHub repository named `agent-resources` with the following structure:
+---
 
-```
-agent-resources/
-├── .claude/
-│   ├── skills/
-│   │   └── my-skill/
-│   │       └── skill.md
-│   ├── commands/
-│   │   └── my-command.md
-│   └── agents/
-│       └── my-agent.md
-```
-
-Others can then install your resources:
+## 📦 Install Any Resource
 
 ```bash
-skill-add yourusername/my-skill
-command-add yourusername/my-command
-agent-add yourusername/my-agent
+uvx skill-add <github-username>/<skill-name>       # Skills
+uvx command-add <github-username>/<command-name>   # Slash commands
+uvx agent-add <github-username>/<agent-name>       # Sub-agents
 ```
 
-## License
+| Flag | Description |
+|------|-------------|
+| `--global` | Install to `~/.claude/` (available in all projects) |
+| `--overwrite` | Replace if already exists |
 
-MIT
+---
+
+## 🛠 Create Your Own Toolkit
+
+Build a personal collection of resources that travels with you.
+
+### Step 1: Create your repo
+
+Create a GitHub repository named **`agent-resources`**:
+
+```
+your-username/agent-resources/
+└── .claude/
+    ├── skills/
+    │   └── my-skill/
+    │       └── SKILL.md
+    ├── commands/
+    │   └── my-command.md
+    └── agents/
+        └── my-agent.md
+```
+
+### Step 2: There is no step 2
+
+Your resources are now installable:
+
+```bash
+uvx skill-add your-username/my-skill
+```
+
+No publishing. No registry. Push to GitHub and it works.
+
+---
+
+## 🌍 Share With Others
+
+Found a useful resource? Share it anywhere:
+
+> *"This skill saves me hours — try `uvx skill-add kasperjunge/hello-world`"*
+
+**That's the entire onboarding.** One command, zero friction.
+
+---
+
+## 🗂 Community Resources
+
+*Coming soon — be the first!*
+
+**Built something useful?** [Open an issue](https://github.com/kasperjunge/agent-resources-project/issues) with a link to your `agent-resources` repo and we'll add it here.
+
+---
+
+<div align="center">
+
+**MIT License** · Made for the [Claude Code](https://claude.ai/code) community
+
+</div>
