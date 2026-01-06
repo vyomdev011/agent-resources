@@ -9,35 +9,50 @@ This is a Python monorepo containing CLI tools for installing Claude Code resour
 ## Repository Structure
 
 ```
-packages/
-├── agent-resources/     # Core library with shared fetching logic, exposes all three CLIs
-├── skill-add/           # Thin wrapper for `uvx skill-add`
-├── command-add/         # Thin wrapper for `uvx command-add`
-├── agent-add/           # Thin wrapper for `uvx agent-add`
-├── add-skill/           # Thin wrapper for `uvx add-skill` (alternative naming)
-├── add-command/         # Thin wrapper for `uvx add-command` (alternative naming)
-└── add-agent/           # Thin wrapper for `uvx add-agent` (alternative naming)
+agent-resources-project/
+├── src/
+│   ├── agent-resources/           # Python core library
+│   │   ├── pyproject.toml         # Package config
+│   │   └── agent_resources/       # Source code
+│   │       ├── cli/               # CLI implementations
+│   │       ├── fetcher.py         # GitHub tarball fetching
+│   │       ├── exceptions.py      # Custom exceptions
+│   │       └── ...
+│   └── agent-resources-npm/       # npm core library (future)
+├── command-packages/
+│   ├── pypi/                      # PyPI wrapper packages
+│   │   ├── add-skill/             # Primary: `uvx add-skill`
+│   │   ├── add-command/           # Primary: `uvx add-command`
+│   │   ├── add-agent/             # Primary: `uvx add-agent`
+│   │   ├── create-agent-resources-repo/
+│   │   ├── skill-add/             # DEPRECATED (use add-skill)
+│   │   ├── command-add/           # DEPRECATED (use add-command)
+│   │   ├── agent-add/             # DEPRECATED (use add-agent)
+│   │   └── <placeholder packages>
+│   └── npm/                       # npm wrapper packages (future)
+├── CLAUDE.md
+└── README.md
 ```
 
 **Primary usage pattern** is via uvx for one-off execution:
 ```bash
-# Either naming convention works:
-uvx skill-add <username>/<skill-name>
+# Primary commands (recommended):
 uvx add-skill <username>/<skill-name>
-
-uvx command-add <username>/<command-name>
 uvx add-command <username>/<command-name>
-
-uvx agent-add <username>/<agent-name>
 uvx add-agent <username>/<agent-name>
+
+# Deprecated (still work, but use primary instead):
+uvx skill-add <username>/<skill-name>
+uvx command-add <username>/<command-name>
+uvx agent-add <username>/<agent-name>
 ```
 
-The individual packages exist to enable this clean uvx UX. They are thin wrappers that depend on `agent-resources`, which contains the shared core logic.
+The wrapper packages in `command-packages/pypi/` exist to enable this clean uvx UX. They are thin wrappers that depend on `agent-resources`, which contains the shared core logic.
 
 
 ## Architecture
 
-**Core Components** (in `packages/agent-resources/src/agent_resources/`):
+**Core Components** (in `src/agent-resources/agent_resources/`):
 - `fetcher.py` - Generic resource fetcher that downloads from GitHub tarballs and extracts resources
 - `cli/common.py` - Shared CLI utilities (argument parsing, destination resolution)
 - `cli/skill.py`, `cli/command.py`, `cli/agent.py` - Typer CLI apps for each resource type

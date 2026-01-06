@@ -21,4 +21,4 @@ agent-add = "agent_resources.cli.agent:app"
 create-agent-resources-repo = "agent_resources.cli.create:app"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agent_resources"]
+packages = ["agent_resources"]
