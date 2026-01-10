@@ -17,7 +17,7 @@ Today's AI agents are powerful in isolation, but the ecosystem is fragmented. Sh
 
 **Agent Resources** fixes this.
 
-One package manager. Every major platform—Claude Code, Codex, Cursor, Open Code. Skills, commands, sub-agents, and every agentic primitive that makes agents powerful.
+One package manager. Every major tool—Claude Code, Cursor, Codex, GitHub Copilot, OpenCode. Skills, commands, subagents, and every agentic primitive that makes agents powerful.
 
 ### What We're Building
 

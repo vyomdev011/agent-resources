@@ -10,7 +10,7 @@ Agent Resources is designed to be the universal package manager and system for A
 |-----------|---------------|
 | **Simplicity over features** | 1-3 operations for all tasks |
 | **Decentralized by default** | GitHub paths work directly, no gatekeeping |
-| **Cross-platform first** | Write once, deploy to Claude Code, Cursor, Cline, Codex |
+| **Cross-tool first** | Write once, deploy to Claude Code, Cursor, Codex, GitHub Copilot, OpenCode |
 | **Dev = Installed** | Same structure everywhere |
 | **Zero overhead** | No lock files, no metadata directories |
 
@@ -34,7 +34,7 @@ resources:
   commands:
     - review
     - quick-check
-  agents:
+  subagents:
     - reviewer-agent
 
 dependencies:
@@ -74,24 +74,6 @@ Run `/review` on any file or directory.
             └── reviewer-agent.md
     ```
 
-=== "OpenCode"
-
-    ```
-    my-project/
-    └── .opencode/
-        ├── packages/
-        │   └── code-reviewer/
-        │       └── PACKAGE.md
-        ├── skill/
-        │   └── code-reviewer/
-        │       └── SKILL.md
-        ├── command/
-        │   ├── review.md
-        │   └── quick-check.md
-        └── agent/
-            └── reviewer-agent.md
-    ```
-
 === "Cursor"
 
     ```
@@ -106,6 +88,56 @@ Run `/review` on any file or directory.
         └── commands/
             ├── review.md
             └── quick-check.md
+    ```
+
+=== "Codex"
+
+    ```
+    my-project/
+    └── .codex/
+        ├── packages/
+        │   └── code-reviewer/
+        │       └── PACKAGE.md
+        ├── skills/
+        │   └── code-reviewer/
+        │       └── SKILL.md
+        └── prompts/
+            ├── review.md
+            └── quick-check.md
+    ```
+
+=== "GitHub Copilot"
+
+    ```
+    my-project/
+    └── .github/
+        ├── packages/
+        │   └── code-reviewer/
+        │       └── PACKAGE.md
+        ├── skills/
+        │   └── code-reviewer/
+        │       └── SKILL.md
+        └── prompts/
+            ├── review.md
+            └── quick-check.md
+    ```
+
+=== "OpenCode"
+
+    ```
+    my-project/
+    └── .opencode/
+        ├── packages/
+        │   └── code-reviewer/
+        │       └── PACKAGE.md
+        ├── skills/
+        │   └── code-reviewer/
+        │       └── SKILL.md
+        ├── commands/
+        │   ├── review.md
+        │   └── quick-check.md
+        └── agents/
+            └── reviewer-agent.md
     ```
 
 ### Installed (User's Project)
@@ -135,29 +167,6 @@ After `agr install anthropics/code-reviewer`:
                 └── reviewer-agent.md
     ```
 
-=== "OpenCode"
-
-    ```
-    user-project/
-    └── .opencode/
-        ├── packages/
-        │   ├── code-reviewer/
-        │   │   └── PACKAGE.md
-        │   └── security-rules/        # dependency
-        │       └── PACKAGE.md
-        ├── skill/
-        │   └── code-reviewer/
-        │       └── code-reviewer/
-        │           └── SKILL.md
-        ├── command/
-        │   └── code-reviewer/
-        │       ├── review.md
-        │       └── quick-check.md
-        └── agent/
-            └── code-reviewer/
-                └── reviewer-agent.md
-    ```
-
 === "Cursor"
 
     ```
@@ -178,6 +187,69 @@ After `agr install anthropics/code-reviewer`:
                 └── quick-check.md
     ```
 
+=== "Codex"
+
+    ```
+    user-project/
+    └── .codex/
+        ├── packages/
+        │   ├── code-reviewer/
+        │   │   └── PACKAGE.md
+        │   └── security-rules/        # dependency
+        │       └── PACKAGE.md
+        ├── skills/
+        │   └── code-reviewer/
+        │       └── code-reviewer/
+        │           └── SKILL.md
+        └── prompts/
+            └── code-reviewer/
+                ├── review.md
+                └── quick-check.md
+    ```
+
+=== "GitHub Copilot"
+
+    ```
+    user-project/
+    └── .github/
+        ├── packages/
+        │   ├── code-reviewer/
+        │   │   └── PACKAGE.md
+        │   └── security-rules/        # dependency
+        │       └── PACKAGE.md
+        ├── skills/
+        │   └── code-reviewer/
+        │       └── code-reviewer/
+        │           └── SKILL.md
+        └── prompts/
+            └── code-reviewer/
+                ├── review.md
+                └── quick-check.md
+    ```
+
+=== "OpenCode"
+
+    ```
+    user-project/
+    └── .opencode/
+        ├── packages/
+        │   ├── code-reviewer/
+        │   │   └── PACKAGE.md
+        │   └── security-rules/        # dependency
+        │       └── PACKAGE.md
+        ├── skills/
+        │   └── code-reviewer/
+        │       └── code-reviewer/
+        │           └── SKILL.md
+        ├── commands/
+        │   └── code-reviewer/
+        │       ├── review.md
+        │       └── quick-check.md
+        └── agents/
+            └── code-reviewer/
+                └── reviewer-agent.md
+    ```
+
 Resources are namespaced by package name to prevent collisions.
 
 ---
@@ -194,14 +266,14 @@ No lock file needed. The installed `PACKAGE.md` files contain exact resolved ver
 
 ---
 
-## Cross-Platform Support
+## Cross-Tool Support
 
-Agent Resources translates packages to work across platforms:
+Agent Resources translates packages to work across tools:
 
 ```bash
 $ agr install anthropics/code-reviewer
 
-Detected platforms: Claude Code, Cursor
+Detected tools: Claude Code, Cursor
 
 Installing to:
   Claude Code: .claude/skills/code-reviewer/
@@ -219,13 +291,13 @@ Share packages with your team by committing the packages directory:
 ```bash
 # Developer A adds a package
 agr install anthropics/code-reviewer
-git add .claude/packages/   # or .opencode/packages/, .cursor/packages/
+git add .claude/packages/   # or .cursor/packages/, .codex/packages/, etc.
 git commit -m "Add code-reviewer package"
 git push
 
 # Developer B gets the same packages
 git pull
-agr sync
+agr install
 ```
 
-The `agr sync` command reads the packages directory and ensures all resources are installed.
+Running `agr install` without arguments reads the packages directory and ensures all resources are installed.

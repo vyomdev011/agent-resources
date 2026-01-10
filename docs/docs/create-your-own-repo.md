@@ -1,6 +1,6 @@
 # Create Your Own Repo
 
-You can host skills, commands, and agents in any public GitHub repository. This guide shows you how to set up a repo and install resources from it.
+You can host skills, commands, and subagents in any public GitHub repository. This guide shows you how to set up a repo and install resources from it.
 
 ---
 
@@ -19,20 +19,6 @@ Your repo must follow this structure:
         ├── commands/
         │   └── my-command.md
         └── agents/
-            └── my-agent.md
-    ```
-
-=== "OpenCode"
-
-    ```
-    your-repo/
-    └── .opencode/
-        ├── skill/
-        │   └── my-skill/
-        │       └── SKILL.md
-        ├── command/
-        │   └── my-command.md
-        └── agent/
             └── my-agent.md
     ```
 
@@ -60,10 +46,36 @@ Your repo must follow this structure:
             └── my-command.md
     ```
 
+=== "GitHub Copilot"
+
+    ```
+    your-repo/
+    └── .github/
+        ├── skills/
+        │   └── my-skill/
+        │       └── SKILL.md
+        └── prompts/
+            └── my-command.md
+    ```
+
+=== "OpenCode"
+
+    ```
+    your-repo/
+    └── .opencode/
+        ├── skills/
+        │   └── my-skill/
+        │       └── SKILL.md
+        ├── commands/
+        │   └── my-command.md
+        └── agents/
+            └── my-agent.md
+    ```
+
 **Key requirements:**
 
 - Skills are directories containing a `SKILL.md` file
-- Commands and agents are `.md` files directly in their folders
+- Commands and subagents are `.md` files directly in their folders
 - Your repo must have a `main` branch
 
 ---
@@ -73,18 +85,18 @@ Your repo must follow this structure:
 Scaffold a new repo with example resources:
 
 ```bash
-agr init
+agr init repo my-agent-resources
 ```
 
-This creates the directory structure with example skill, command, and agent files. By default, it uses Claude Code.
+This creates the directory structure with example skill, command, and subagent files.
 
-To initialize for a specific platform:
+To create individual resources:
 
 ```bash
-agr init --platform=claude
-agr init --platform=cursor
-agr init --platform=codex
-agr init --platform=opencode
+agr init skill my-skill
+agr init command my-command
+agr init subagent my-agent
+agr init package my-package
 ```
 
 Push to GitHub and you're ready to share.

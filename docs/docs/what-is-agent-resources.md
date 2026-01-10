@@ -25,14 +25,21 @@ Skills extend your agent with new capabilities. They're directories containing a
 === "OpenCode"
 
     ```
-    .opencode/skill/code-reviewer/
+    .opencode/skills/code-reviewer/
     └── SKILL.md
     ```
 
 === "Codex"
 
     ```
-    ~/.codex/skills/code-reviewer/
+    .codex/skills/code-reviewer/
+    └── SKILL.md
+    ```
+
+=== "GitHub Copilot"
+
+    ```
+    .github/skills/code-reviewer/
     └── SKILL.md
     ```
 
@@ -59,22 +66,29 @@ Commands give your agent new slash commands to execute. They're markdown files t
 === "OpenCode"
 
     ```
-    .opencode/command/
+    .opencode/commands/
     └── review.md
     ```
 
 === "Codex"
 
     ```
-    ~/.codex/prompts/
+    .codex/prompts/
+    └── review.md
+    ```
+
+=== "GitHub Copilot"
+
+    ```
+    .github/prompts/
     └── review.md
     ```
 
 ---
 
-## Agents
+## Subagents
 
-Agents are specialized sub-agents that your main agent can delegate tasks to. They're markdown files that define the agent's role and capabilities.
+Subagents are specialized agents that your main agent can delegate tasks to. They're markdown files that define the agent's role and capabilities.
 
 === "Claude Code"
 
@@ -86,23 +100,27 @@ Agents are specialized sub-agents that your main agent can delegate tasks to. Th
 === "OpenCode"
 
     ```
-    .opencode/agent/
+    .opencode/agents/
     └── reviewer-agent.md
     ```
 
 === "Cursor"
 
-    Cursor does not support custom agents.
+    Cursor does not support custom subagents.
 
 === "Codex"
 
-    Codex does not support custom agents.
+    Codex does not support custom subagents.
+
+=== "GitHub Copilot"
+
+    GitHub Copilot does not support custom subagents.
 
 ---
 
 ## Packages
 
-Packages bundle skills, commands, and agents together. A single package can contain any combination of resource types, plus dependencies on other packages.
+Packages bundle skills, commands, and subagents together. A single package can contain any combination of resource types, plus dependencies on other packages.
 
 === "Claude Code"
 
@@ -118,6 +136,13 @@ Packages bundle skills, commands, and agents together. A single package can cont
     └── PACKAGE.md
     ```
 
+=== "Codex"
+
+    ```
+    .codex/packages/code-reviewer/
+    └── PACKAGE.md
+    ```
+
 === "Cursor"
 
     ```
@@ -125,10 +150,10 @@ Packages bundle skills, commands, and agents together. A single package can cont
     └── PACKAGE.md
     ```
 
-=== "Codex"
+=== "GitHub Copilot"
 
     ```
-    ~/.codex/packages/code-reviewer/
+    .github/packages/code-reviewer/
     └── PACKAGE.md
     ```
 

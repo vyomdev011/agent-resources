@@ -53,6 +53,8 @@ node_modules/
 package-lock.json
 .env
 .research/
+.repos/
 
 docs/site/
 docs/.cache/
+.documents/
