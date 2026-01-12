@@ -545,7 +545,7 @@
         <h1>Share <span class="highlight">Claude Code</span> Resources Instantly</h1>
         <p class="subtitle">
             Install skills, commands, and sub-agents with a single command. 
-            Like pip, but for Claude Code. No registry. No publishing step.
+            Like uv add, but for Claude Code.
         </p>
         
         <div class="terminal">
@@ -555,17 +555,17 @@
                 <div class="terminal-dot green"></div>
             </div>
             <div class="terminal-body">
-                <div class="terminal-line">
+                <div class="terminal-line">kasperjunge/hello-world
                     <span class="prompt">$</span>
-                    <span class="command">uvx add-skill kasperjunge/hello-world</span>
+                    <span class="command">uvx agr add skill kasperjunge/hello-world</span>
                 </div>
                 <div class="terminal-line">
                     <span class="prompt">$</span>
-                    <span class="command">uvx add-command username/my-command</span>
+                    <span class="command">uvx agr add command kasperjunge/hello-world</span>
                 </div>
                 <div class="terminal-line">
                     <span class="prompt">$</span>
-                    <span class="command">uvx add-agent username/code-reviewer</span>
+                    <span class="command">uvx agr add agent kasperjunge/hello-world</span>
                 </div>
             </div>
         </div>
@@ -621,7 +621,7 @@
                 <div class="step-content">
                     <h3>Try an existing skill</h3>
                     <p>No installation needed. Just run this command to add your first skill:</p>
-                    <code>uvx add-skill kasperjunge/hello-world</code>
+                    <code>uvx agr add skill kasperjunge/hello-world</code>
                 </div>
             </div>
             <div class="step">
@@ -629,7 +629,7 @@
                 <div class="step-content">
                     <h3>Create your own repo</h3>
                     <p>Scaffold your personal agent-resources repository with one command:</p>
-                    <code>uvx create-agent-resources-repo --github</code>
+                    <code>agr init repo --github</code>
                 </div>
             </div>
             <div class="step">
@@ -637,7 +637,7 @@
                 <div class="step-content">
                     <h3>Share with the community</h3>
                     <p>Push to GitHub and share your resources. Others can install with:</p>
-                    <code>uvx add-skill your-username/your-skill</code>
+                    <code>agr add skill your-username/your-skill</code>
                 </div>
             </div>
         </div>
@@ -663,7 +663,7 @@
         <p>
             <strong>MIT License</strong> · Made for the <a href="https://claude.ai/code">Claude Code</a> community
             <br><br>
-            Built by <a href="https://github.com/kasperjunge">Kasper Junge</a>
+            Built by <a href="https://github.com/kasperjunge">Kasper Junge</a> and <a href="https://github.com/jkhkyhse">Jonas Høgh Kyhse-Andersen</a>
         </p>
     </footer>
 
@@ -694,4 +694,3 @@
     </script>
 </body>
 </html>
-
