@@ -6,10 +6,10 @@
 
 *Like pip, but for Claude Code resources.*
 
-[![PyPI](https://img.shields.io/pypi/v/agent-resources?color=blue)](https://pypi.org/project/agent-resources/)
+[![PyPI](https://img.shields.io/pypi/v/agr?color=blue)](https://pypi.org/project/agr/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[Try It](#-try-it-now) • [Install](#-install-any-resource) • [Create Your Own](#-create-your-own) • [Community](#-community-resources)
+[Try It](#try-it-now) • [Install](#install-any-resource) • [Create Your Own](#create-your-own) • [Community](#community-resources)
 
 </div>
 
@@ -20,29 +20,54 @@
 No installation needed. Just run:
 
 ```bash
-uvx add-skill kasperjunge/hello-world
+uvx agr add skill kasperjunge/hello-world
 ```
 
 **That's it.** The skill is now available in Claude Code.
+
+Or install permanently:
+
+```bash
+pip install agr
+agr add skill kasperjunge/hello-world
+```
 
 ---
 
 ## Install Any Resource
 
 ```bash
-uvx add-skill <username>/<skill-name>       # Skills
-uvx add-command <username>/<command-name>   # Slash commands
-uvx add-agent <username>/<agent-name>       # Sub-agents
+agr add skill <username>/<skill-name>       # Skills
+agr add command <username>/<command-name>   # Slash commands
+agr add agent <username>/<agent-name>       # Sub-agents
+```
+
+### Default Repository Convention
+
+If you name your repo `agent-resources`, users only need to specify your username and resource name:
+
+```bash
+# Installs from github.com/kasperjunge/agent-resources
+agr add skill kasperjunge/hello-world
+```
+
+### Install From Any Repository
+
+You can install from any GitHub repository that has the `.claude/` structure. Just use the three-part format:
+
+```bash
+# Installs from github.com/username/custom-repo
+agr add skill username/custom-repo/my-skill
 ```
 
 ---
 
-## Create Your Own
+## Create Your Own Library
 
 Ready to share your own skills? Create your personal toolkit in 30 seconds:
 
 ```bash
-uvx create-agent-resources-repo --github
+agr init repo --github
 ```
 
 **Done.** You now have a GitHub repo that anyone can install from.
@@ -56,7 +81,7 @@ uvx create-agent-resources-repo --github
 - Instant shareability — tell others:
 
 ```bash
-uvx add-skill <your-username>/hello-world
+agr add skill <your-username>/hello-world
 ```
 
 ### Add Your Own Resources
@@ -75,16 +100,6 @@ Push to GitHub. No registry, no publishing step.
 
 ---
 
-## Share With Others
-
-Sharing is just a message:
-
-> *"This skill saves me hours — try `uvx add-skill yourname/cool-skill`"*
-
-**One command. Zero friction.** The more you share, the more the community grows.
-
----
-
 ## Community Resources
 
 ### Go Development Toolkit — [@dsjacobsen](https://github.com/dsjacobsen/agent-resources)
@@ -92,16 +107,45 @@ Sharing is just a message:
 A comprehensive Claude Code toolkit for Go developers.
 
 ```bash
-uvx add-skill dsjacobsen/golang-pro      # Expert Go knowledge
-uvx add-agent dsjacobsen/go-reviewer     # Code review agent
-uvx add-command dsjacobsen/go-check      # Quick code check
+agr add skill dsjacobsen/golang-pro      # Expert Go knowledge
+agr add agent dsjacobsen/go-reviewer     # Code review agent
+agr add command dsjacobsen/go-check      # Quick code check
 ```
 
 **Includes**: 1 skill, 9 agents, 11 commands covering scaffolding, testing, API building, refactoring, and more.
 
+### Drupal Development Toolkit — [@madsnorgaard](https://github.com/madsnorgaard/agent-resources)
+
+A comprehensive Claude Code toolkit for Drupal developers.
+
+```bash
+agr add skill madsnorgaard/drupal-expert      # Drupal 10/11 modules, themes, hooks
+agr add skill madsnorgaard/drupal-migration   # D7-to-D10 migrations, CSV imports
+agr add skill madsnorgaard/ddev-expert        # DDEV local development, Xdebug
+agr add agent madsnorgaard/drupal-reviewer    # Code review agent
+agr add command madsnorgaard/drush-check      # Run health checks
+```
+
+**Includes**: 4 skills, 1 agent, 5 commands covering Drupal development, migrations, DDEV, Docker, security audits, and more.
+
 ---
 
 **Built something useful?** [Open an issue](https://github.com/kasperjunge/agent-resources-project/issues) with a link to your `agent-resources` repo and we'll add it here.
+
+---
+
+## Legacy Commands
+
+The following commands are deprecated but still supported for backwards compatibility:
+
+```bash
+uvx add-skill <username>/<skill-name>
+uvx add-command <username>/<command-name>
+uvx add-agent <username>/<agent-name>
+uvx create-agent-resources-repo
+```
+
+Use `agr add` and `agr init` instead.
 
 ---
 
