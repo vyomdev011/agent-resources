@@ -47,6 +47,27 @@ agr add skill username/custom-repo/my-skill
 agr add skill username/backend:hello-world
 ```
 
+### Bundles
+
+Install all resources from a bundle (a named collection of skills, commands, and agents):
+
+```bash
+agr add bundle <username>/<bundle-name>
+agr add bundle <username>/<repo>/<bundle-name>
+```
+
+Options:
+
+- `--global`, `-g`: install to `~/.claude/` instead of the current directory
+- `--overwrite`: replace existing resources
+
+Examples:
+
+```bash
+agr add bundle kasperjunge/anthropic
+agr add bundle kasperjunge/my-repo/productivity --global
+```
+
 ## agr update
 
 Re-fetch resources from GitHub to get the latest version.
@@ -71,6 +92,24 @@ agr update command kasperjunge/my-repo/hello --global
 agr update agent kasperjunge/hello-agent
 ```
 
+### Bundles
+
+```bash
+agr update bundle <username>/<bundle-name>
+agr update bundle <username>/<repo>/<bundle-name>
+```
+
+Options:
+
+- `--global`, `-g`: update in `~/.claude/` instead of the current directory
+
+Examples:
+
+```bash
+agr update bundle kasperjunge/anthropic
+agr update bundle kasperjunge/my-repo/productivity --global
+```
+
 ## agr remove
 
 Remove resources from the local installation.
@@ -93,6 +132,23 @@ agr remove agent <name>
 agr remove skill hello-world
 agr remove command hello --global
 agr remove agent hello-agent
+```
+
+### Bundles
+
+```bash
+agr remove bundle <bundle-name>
+```
+
+Options:
+
+- `--global`, `-g`: remove from `~/.claude/` instead of the current directory
+
+Examples:
+
+```bash
+agr remove bundle anthropic
+agr remove bundle productivity --global
 ```
 
 !!! warning

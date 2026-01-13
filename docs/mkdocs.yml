@@ -57,6 +57,7 @@ nav:
       - Getting help: getting-started/help.md
   - Guides:
       - Installing resources: guides/installing-resources.md
+      - Bundles: guides/bundles.md
       - Creating resources: guides/creating-resources.md
       - Creating a shareable repo: guides/creating-repo.md
   - Concepts:

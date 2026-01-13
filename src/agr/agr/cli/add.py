@@ -4,7 +4,7 @@ from typing import Annotated
 
 import typer
 
-from agr.cli.common import handle_add_resource
+from agr.cli.common import handle_add_bundle, handle_add_resource
 from agr.fetcher import ResourceType
 
 app = typer.Typer(
@@ -125,3 +125,53 @@ def add_agent(
       agr add agent kasperjunge/my-repo/hello-agent --global
     """
     handle_add_resource(agent_ref, ResourceType.AGENT, "agents", overwrite, global_install)
+
+
+@app.command("bundle")
+def add_bundle(
+    bundle_ref: Annotated[
+        str,
+        typer.Argument(
+            help="Bundle reference: <username>/<bundle-name> or <username>/<repo>/<bundle-name>",
+            metavar="REFERENCE",
+        ),
+    ],
+    overwrite: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite",
+            help="Overwrite existing resources if they exist.",
+        ),
+    ] = False,
+    global_install: Annotated[
+        bool,
+        typer.Option(
+            "--global",
+            "-g",
+            help="Install to ~/.claude/ instead of ./.claude/",
+        ),
+    ] = False,
+) -> None:
+    """Add a bundle of resources from a GitHub repository.
+
+    A bundle installs all skills, commands, and agents from a named directory.
+
+    REFERENCE format:
+      - username/bundle-name: installs from github.com/username/agent-resources
+      - username/repo/bundle-name: installs from github.com/username/repo
+
+    Bundle structure in source repo:
+      .claude/skills/{bundle-name}/*/SKILL.md     -> skills
+      .claude/commands/{bundle-name}/*.md         -> commands
+      .claude/agents/{bundle-name}/*.md           -> agents
+
+    Resources are installed with the bundle name as a prefix:
+      .claude/skills/{bundle-name}/{skill-name}/
+      .claude/commands/{bundle-name}/{command-name}.md
+      .claude/agents/{bundle-name}/{agent-name}.md
+
+    Examples:
+      agr add bundle kasperjunge/productivity
+      agr add bundle kasperjunge/my-repo/productivity --global
+    """
+    handle_add_bundle(bundle_ref, overwrite, global_install)

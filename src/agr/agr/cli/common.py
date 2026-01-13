@@ -12,11 +12,19 @@ from rich.spinner import Spinner
 
 from agr.exceptions import (
     AgrError,
+    BundleNotFoundError,
     RepoNotFoundError,
     ResourceExistsError,
     ResourceNotFoundError,
 )
-from agr.fetcher import ResourceType, fetch_resource
+from agr.fetcher import (
+    BundleInstallResult,
+    BundleRemoveResult,
+    ResourceType,
+    fetch_bundle,
+    fetch_resource,
+    remove_bundle,
+)
 
 console = Console()
 
@@ -104,6 +112,13 @@ def parse_resource_ref(ref: str) -> tuple[str, str, str, list[str]]:
     return username, repo, name, path_segments
 
 
+def get_base_path(global_install: bool) -> Path:
+    """Get the base .claude directory path."""
+    if global_install:
+        return Path.home() / ".claude"
+    return Path.cwd() / ".claude"
+
+
 def get_destination(resource_subdir: str, global_install: bool) -> Path:
     """
     Get the destination directory for a resource.
@@ -115,12 +130,7 @@ def get_destination(resource_subdir: str, global_install: bool) -> Path:
     Returns:
         Path to the destination directory
     """
-    if global_install:
-        base = Path.home() / ".claude"
-    else:
-        base = Path.cwd() / ".claude"
-
-    return base / resource_subdir
+    return get_base_path(global_install) / resource_subdir
 
 
 @contextmanager
@@ -289,4 +299,162 @@ def handle_remove_resource(
         console.print(f"[green]Removed {resource_type.value} '{name}'[/green]")
     except OSError as e:
         typer.echo(f"Error: Failed to remove resource: {e}", err=True)
+        raise typer.Exit(1)
+
+
+# Bundle handlers
+
+
+def print_installed_resources(result: BundleInstallResult) -> None:
+    """Print the list of installed resources from a bundle result."""
+    if result.installed_skills:
+        skills_str = ", ".join(result.installed_skills)
+        console.print(f"  [cyan]Skills ({len(result.installed_skills)}):[/cyan] {skills_str}")
+    if result.installed_commands:
+        commands_str = ", ".join(result.installed_commands)
+        console.print(f"  [cyan]Commands ({len(result.installed_commands)}):[/cyan] {commands_str}")
+    if result.installed_agents:
+        agents_str = ", ".join(result.installed_agents)
+        console.print(f"  [cyan]Agents ({len(result.installed_agents)}):[/cyan] {agents_str}")
+
+
+def print_bundle_success_message(
+    bundle_name: str,
+    result: BundleInstallResult,
+    username: str,
+    repo: str,
+) -> None:
+    """Print detailed success message for bundle installation."""
+    console.print(f"[green]Installed bundle '{bundle_name}'[/green]")
+    print_installed_resources(result)
+
+    if result.total_skipped > 0:
+        console.print(
+            f"[yellow]Skipped {result.total_skipped} existing resource(s). "
+            "Use --overwrite to replace.[/yellow]"
+        )
+        if result.skipped_skills:
+            console.print(f"  [dim]Skipped skills: {', '.join(result.skipped_skills)}[/dim]")
+        if result.skipped_commands:
+            console.print(f"  [dim]Skipped commands: {', '.join(result.skipped_commands)}[/dim]")
+        if result.skipped_agents:
+            console.print(f"  [dim]Skipped agents: {', '.join(result.skipped_agents)}[/dim]")
+
+    # Build share reference
+    if repo == DEFAULT_REPO_NAME:
+        share_ref = f"{username}/{bundle_name}"
+    else:
+        share_ref = f"{username}/{repo}/{bundle_name}"
+
+    ctas = [
+        f"Create your own bundle: organize resources under .claude/*/bundle-name/",
+        "Star: https://github.com/kasperjunge/agent-resources",
+        f"Share: agr add bundle {share_ref}",
+    ]
+    console.print(f"[dim]{random.choice(ctas)}[/dim]")
+
+
+def print_bundle_remove_message(bundle_name: str, result: BundleRemoveResult) -> None:
+    """Print detailed message for bundle removal."""
+    console.print(f"[green]Removed bundle '{bundle_name}'[/green]")
+
+    if result.removed_skills:
+        skills_str = ", ".join(result.removed_skills)
+        console.print(f"  [dim]Skills ({len(result.removed_skills)}): {skills_str}[/dim]")
+    if result.removed_commands:
+        commands_str = ", ".join(result.removed_commands)
+        console.print(f"  [dim]Commands ({len(result.removed_commands)}): {commands_str}[/dim]")
+    if result.removed_agents:
+        agents_str = ", ".join(result.removed_agents)
+        console.print(f"  [dim]Agents ({len(result.removed_agents)}): {agents_str}[/dim]")
+
+
+def handle_add_bundle(
+    bundle_ref: str,
+    overwrite: bool = False,
+    global_install: bool = False,
+) -> None:
+    """
+    Handler for adding a bundle of resources.
+
+    Args:
+        bundle_ref: Bundle reference (e.g., "username/bundle-name")
+        overwrite: Whether to overwrite existing resources
+        global_install: If True, install to ~/.claude/, else to ./.claude/
+    """
+    try:
+        username, repo_name, bundle_name, _path_segments = parse_resource_ref(bundle_ref)
+    except typer.BadParameter as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+    dest_base = get_base_path(global_install)
+
+    try:
+        with fetch_spinner():
+            result = fetch_bundle(username, repo_name, bundle_name, dest_base, overwrite)
+
+        if result.total_installed == 0 and result.total_skipped > 0:
+            console.print(f"[yellow]No new resources installed from bundle '{bundle_name}'.[/yellow]")
+            console.print("[yellow]All resources already exist. Use --overwrite to replace.[/yellow]")
+        else:
+            print_bundle_success_message(bundle_name, result, username, repo_name)
+
+    except (RepoNotFoundError, BundleNotFoundError, AgrError) as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+
+def handle_update_bundle(
+    bundle_ref: str,
+    global_install: bool = False,
+) -> None:
+    """
+    Handler for updating a bundle by re-fetching from GitHub.
+
+    Args:
+        bundle_ref: Bundle reference (e.g., "username/bundle-name")
+        global_install: If True, update in ~/.claude/, else in ./.claude/
+    """
+    try:
+        username, repo_name, bundle_name, _path_segments = parse_resource_ref(bundle_ref)
+    except typer.BadParameter as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+    dest_base = get_base_path(global_install)
+
+    try:
+        with fetch_spinner():
+            result = fetch_bundle(username, repo_name, bundle_name, dest_base, overwrite=True)
+
+        console.print(f"[green]Updated bundle '{bundle_name}'[/green]")
+        print_installed_resources(result)
+
+    except (RepoNotFoundError, BundleNotFoundError, AgrError) as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+
+def handle_remove_bundle(
+    bundle_name: str,
+    global_install: bool = False,
+) -> None:
+    """
+    Handler for removing a bundle.
+
+    Args:
+        bundle_name: Name of the bundle to remove
+        global_install: If True, remove from ~/.claude/, else from ./.claude/
+    """
+    dest_base = get_base_path(global_install)
+
+    try:
+        result = remove_bundle(bundle_name, dest_base)
+        print_bundle_remove_message(bundle_name, result)
+    except BundleNotFoundError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+    except OSError as e:
+        typer.echo(f"Error: Failed to remove bundle: {e}", err=True)
         raise typer.Exit(1)

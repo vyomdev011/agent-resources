@@ -60,6 +60,16 @@ You can install from any GitHub repository that has the `.claude/` structure. Ju
 agr add skill username/custom-repo/my-skill
 ```
 
+### Install a Bundle
+
+Install multiple resources at once with bundles:
+
+```bash
+agr add bundle kasperjunge/anthropic
+```
+
+This installs all skills, commands, and agents from the bundle in one command.
+
 ---
 
 ## Create Your Own Library

@@ -4,7 +4,7 @@ from typing import Annotated
 
 import typer
 
-from agr.cli.common import handle_update_resource
+from agr.cli.common import handle_update_bundle, handle_update_resource
 from agr.fetcher import ResourceType
 
 app = typer.Typer(
@@ -104,3 +104,37 @@ def update_agent(
       agr update agent kasperjunge/my-repo/hello-agent --global
     """
     handle_update_resource(agent_ref, ResourceType.AGENT, "agents", global_install)
+
+
+@app.command("bundle")
+def update_bundle(
+    bundle_ref: Annotated[
+        str,
+        typer.Argument(
+            help="Bundle reference: <username>/<bundle-name> or <username>/<repo>/<bundle-name>",
+            metavar="REFERENCE",
+        ),
+    ],
+    global_install: Annotated[
+        bool,
+        typer.Option(
+            "--global",
+            "-g",
+            help="Update in ~/.claude/ instead of ./.claude/",
+        ),
+    ] = False,
+) -> None:
+    """Update a bundle by re-fetching from GitHub.
+
+    Re-downloads all resources from the bundle and overwrites local copies.
+    Also adds any new resources that were added to the bundle upstream.
+
+    REFERENCE format:
+      - username/bundle-name: re-fetches from github.com/username/agent-resources
+      - username/repo/bundle-name: re-fetches from github.com/username/repo
+
+    Examples:
+      agr update bundle kasperjunge/productivity
+      agr update bundle kasperjunge/my-repo/productivity --global
+    """
+    handle_update_bundle(bundle_ref, global_install)

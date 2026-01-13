@@ -4,7 +4,7 @@ from typing import Annotated
 
 import typer
 
-from agr.cli.common import handle_remove_resource
+from agr.cli.common import handle_remove_bundle, handle_remove_resource
 from agr.fetcher import ResourceType
 
 app = typer.Typer(
@@ -98,3 +98,32 @@ def remove_agent(
       agr remove agent hello-agent --global
     """
     handle_remove_resource(name, ResourceType.AGENT, "agents", global_install)
+
+
+@app.command("bundle")
+def remove_bundle(
+    name: Annotated[
+        str,
+        typer.Argument(
+            help="Name of the bundle to remove",
+            metavar="NAME",
+        ),
+    ],
+    global_install: Annotated[
+        bool,
+        typer.Option(
+            "--global",
+            "-g",
+            help="Remove from ~/.claude/ instead of ./.claude/",
+        ),
+    ] = False,
+) -> None:
+    """Remove all resources from a bundle.
+
+    Removes the bundle directory for skills, commands, and agents.
+
+    Examples:
+      agr remove bundle productivity
+      agr remove bundle productivity --global
+    """
+    handle_remove_bundle(name, global_install)
