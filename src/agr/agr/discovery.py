@@ -1,5 +1,10 @@
 """Local resource discovery for authoring paths.
 
+NOTE: As of the unified dependencies refactor, auto-discovery is deprecated.
+Resources should be explicitly added via 'agr add ./path' instead of being
+auto-discovered. The discover_local_resources function is kept for backward
+compatibility but is no longer called by 'agr sync'.
+
 This module provides functionality to discover resources in convention paths:
 - skills/*/SKILL.md
 - commands/*.md
@@ -172,6 +177,9 @@ def _discover_packages(root_path: Path) -> list[LocalPackage]:
 
 def discover_local_resources(root_path: Path) -> DiscoveryContext:
     """Discover all local resources in convention paths.
+
+    DEPRECATED: This function is kept for backward compatibility but is no longer
+    used by 'agr sync'. Resources should be explicitly added via 'agr add ./path'.
 
     Scans the following paths for resources:
     - skills/*/SKILL.md (skill directories)

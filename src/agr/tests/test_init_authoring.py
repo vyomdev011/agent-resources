@@ -12,52 +12,35 @@ runner = CliRunner()
 
 
 class TestInitCallback:
-    """Tests for agr init (no subcommand) - convention structure."""
+    """Tests for agr init (no subcommand) - shows usage info."""
 
-    def test_init_creates_convention_directories(self, tmp_path: Path, monkeypatch):
-        """Test that agr init creates skills/, commands/, agents/, packages/."""
+    def test_init_shows_usage_info(self, tmp_path: Path, monkeypatch):
+        """Test that agr init shows usage information without creating dirs."""
         monkeypatch.chdir(tmp_path)
 
         result = runner.invoke(app, ["init"])
 
         assert result.exit_code == 0
-        assert (tmp_path / "skills").is_dir()
-        assert (tmp_path / "commands").is_dir()
-        assert (tmp_path / "agents").is_dir()
-        assert (tmp_path / "packages").is_dir()
-        assert "Created authoring directories" in result.output
+        # Should show usage info, not create directories
+        assert "agr init skill" in result.output
+        assert "agr init command" in result.output
+        assert "agr init agent" in result.output
+        assert "agr init package" in result.output
 
-    def test_init_skips_existing_directories(self, tmp_path: Path, monkeypatch):
-        """Test that agr init skips existing directories."""
+        # Should NOT create convention directories automatically
+        assert not (tmp_path / "skills").exists()
+        assert not (tmp_path / "commands").exists()
+        assert not (tmp_path / "agents").exists()
+        assert not (tmp_path / "packages").exists()
+
+    def test_init_mentions_automatic_dir_creation(self, tmp_path: Path, monkeypatch):
+        """Test that agr init mentions dirs are created automatically."""
         monkeypatch.chdir(tmp_path)
-
-        # Create some directories already
-        (tmp_path / "skills").mkdir()
-        (tmp_path / "commands").mkdir()
 
         result = runner.invoke(app, ["init"])
 
         assert result.exit_code == 0
-        # Only agents/ and packages/ should be new
-        assert (tmp_path / "skills").is_dir()
-        assert (tmp_path / "commands").is_dir()
-        assert (tmp_path / "agents").is_dir()
-        assert (tmp_path / "packages").is_dir()
-
-    def test_init_all_exist_shows_message(self, tmp_path: Path, monkeypatch):
-        """Test that agr init shows message when all dirs exist."""
-        monkeypatch.chdir(tmp_path)
-
-        # Create all directories
-        (tmp_path / "skills").mkdir()
-        (tmp_path / "commands").mkdir()
-        (tmp_path / "agents").mkdir()
-        (tmp_path / "packages").mkdir()
-
-        result = runner.invoke(app, ["init"])
-
-        assert result.exit_code == 0
-        assert "already exist" in result.output
+        assert "automatically" in result.output.lower()
 
 
 class TestInitSkillAuthoring:
@@ -71,7 +54,19 @@ class TestInitSkillAuthoring:
 
         assert result.exit_code == 0
         assert (tmp_path / "skills" / "my-skill" / "SKILL.md").exists()
-        assert "agr sync" in result.output
+
+    def test_init_skill_creates_skills_dir(self, tmp_path: Path, monkeypatch):
+        """Test that init skill creates skills/ directory if it doesn't exist."""
+        monkeypatch.chdir(tmp_path)
+
+        # skills/ doesn't exist yet
+        assert not (tmp_path / "skills").exists()
+
+        result = runner.invoke(app, ["init", "skill", "my-skill"])
+
+        assert result.exit_code == 0
+        assert (tmp_path / "skills").is_dir()
+        assert (tmp_path / "skills" / "my-skill" / "SKILL.md").exists()
 
     def test_init_skill_legacy_uses_claude_path(self, tmp_path: Path, monkeypatch):
         """Test that --legacy creates in .claude/skills/."""
@@ -81,7 +76,6 @@ class TestInitSkillAuthoring:
 
         assert result.exit_code == 0
         assert (tmp_path / ".claude" / "skills" / "my-skill" / "SKILL.md").exists()
-        assert "agr sync" not in result.output  # No sync hint for legacy
 
     def test_init_skill_custom_path(self, tmp_path: Path, monkeypatch):
         """Test that --path overrides default."""
@@ -105,7 +99,19 @@ class TestInitCommandAuthoring:
 
         assert result.exit_code == 0
         assert (tmp_path / "commands" / "my-cmd.md").exists()
-        assert "agr sync" in result.output
+
+    def test_init_command_creates_commands_dir(self, tmp_path: Path, monkeypatch):
+        """Test that init command creates commands/ directory if it doesn't exist."""
+        monkeypatch.chdir(tmp_path)
+
+        # commands/ doesn't exist yet
+        assert not (tmp_path / "commands").exists()
+
+        result = runner.invoke(app, ["init", "command", "my-cmd"])
+
+        assert result.exit_code == 0
+        assert (tmp_path / "commands").is_dir()
+        assert (tmp_path / "commands" / "my-cmd.md").exists()
 
     def test_init_command_legacy_uses_claude_path(self, tmp_path: Path, monkeypatch):
         """Test that --legacy creates in .claude/commands/."""
@@ -128,7 +134,19 @@ class TestInitAgentAuthoring:
 
         assert result.exit_code == 0
         assert (tmp_path / "agents" / "my-agent.md").exists()
-        assert "agr sync" in result.output
+
+    def test_init_agent_creates_agents_dir(self, tmp_path: Path, monkeypatch):
+        """Test that init agent creates agents/ directory if it doesn't exist."""
+        monkeypatch.chdir(tmp_path)
+
+        # agents/ doesn't exist yet
+        assert not (tmp_path / "agents").exists()
+
+        result = runner.invoke(app, ["init", "agent", "my-agent"])
+
+        assert result.exit_code == 0
+        assert (tmp_path / "agents").is_dir()
+        assert (tmp_path / "agents" / "my-agent.md").exists()
 
     def test_init_agent_legacy_uses_claude_path(self, tmp_path: Path, monkeypatch):
         """Test that --legacy creates in .claude/agents/."""
@@ -155,6 +173,18 @@ class TestInitPackage:
         assert (pkg_path / "skills").is_dir()
         assert (pkg_path / "commands").is_dir()
         assert (pkg_path / "agents").is_dir()
+
+    def test_init_package_creates_packages_dir(self, tmp_path: Path, monkeypatch):
+        """Test that init package creates packages/ directory if it doesn't exist."""
+        monkeypatch.chdir(tmp_path)
+
+        # packages/ doesn't exist yet
+        assert not (tmp_path / "packages").exists()
+
+        result = runner.invoke(app, ["init", "package", "my-toolkit"])
+
+        assert result.exit_code == 0
+        assert (tmp_path / "packages").is_dir()
 
     def test_init_package_custom_path(self, tmp_path: Path, monkeypatch):
         """Test that --path overrides default package location."""

@@ -66,12 +66,12 @@ def _get_resource_target_path(
 def init_callback(
     ctx: typer.Context,
 ) -> None:
-    """Create convention directory structure for local resource authoring.
+    """Initialize resources for local authoring.
 
-    When called without a subcommand, creates the skills/, commands/, agents/,
-    and packages/ directories for local resource authoring.
+    When called without a subcommand, shows help for available init commands.
+    Directories are only created when initializing specific resource types.
 
-    With subcommands:
+    Subcommands:
       agr init skill <name>    Create a new skill scaffold
       agr init command <name>  Create a new command scaffold
       agr init agent <name>    Create a new agent scaffold
@@ -80,23 +80,14 @@ def init_callback(
     """
     # Only run if no subcommand was invoked
     if ctx.invoked_subcommand is None:
-        base_path = Path.cwd()
-
-        created = _create_convention_structure(base_path)
-
-        if created:
-            console.print("[green]Created authoring directories:[/green]")
-            for d in created:
-                console.print(f"  {d.relative_to(base_path)}/")
-            console.print("\nNext steps:")
-            console.print("  agr init skill <name>    # Create a new skill")
-            console.print("  agr init command <name>  # Create a new command")
-            console.print("  agr init agent <name>    # Create a new agent")
-            console.print("  agr init package <name>  # Create a new package")
-            console.print("\nAfter creating resources, run:")
-            console.print("  agr sync                 # Sync to .claude/")
-        else:
-            console.print("[dim]Authoring directories already exist.[/dim]")
+        console.print("Initialize agent resources for local authoring.\n")
+        console.print("Usage:")
+        console.print("  agr init skill <name>    Create a new skill in skills/")
+        console.print("  agr init command <name>  Create a new command in commands/")
+        console.print("  agr init agent <name>    Create a new agent in agents/")
+        console.print("  agr init package <name>  Create a new package in packages/")
+        console.print("  agr init repo [name]     Create a full agent-resources repository")
+        console.print("\nDirectories are created automatically when needed.")
 
 
 @app.command("repo")

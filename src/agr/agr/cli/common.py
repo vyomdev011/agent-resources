@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.spinner import Spinner
 
-from agr.config import AgrConfig, DependencySpec, get_or_create_config
+from agr.config import AgrConfig, Dependency, get_or_create_config
 from agr.exceptions import (
     AgrError,
     BundleNotFoundError,
@@ -349,15 +349,15 @@ def _remove_from_agr_toml(
         refs_to_check = []
         if username:
             refs_to_check.append(f"{username}/{name}")
-        # Also check all refs ending with /name
-        for ref in list(config.dependencies.keys()):
-            if ref.endswith(f"/{name}"):
-                refs_to_check.append(ref)
+
+        # Also check all handles ending with /name
+        for dep in config.dependencies:
+            if dep.handle and dep.handle.endswith(f"/{name}"):
+                refs_to_check.append(dep.handle)
 
         removed = False
         for ref in refs_to_check:
-            if ref in config.dependencies:
-                config.remove_dependency(ref)
+            if config.remove_by_handle(ref):
                 removed = True
                 break
 
@@ -839,8 +839,8 @@ def _add_to_agr_toml(
 
     try:
         config_path, config = get_or_create_config()
-        spec = DependencySpec(type=resource_type.value if resource_type else None)
-        config.add_dependency(resource_ref, spec)
+        type_str = resource_type.value if resource_type else "skill"
+        config.add_remote(resource_ref, type_str)
         config.save(config_path)
         console.print(f"[dim]Added to agr.toml[/dim]")
     except Exception:

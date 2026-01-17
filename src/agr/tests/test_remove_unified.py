@@ -7,7 +7,7 @@ import pytest
 from typer.testing import CliRunner
 
 from agr.cli.main import app
-from agr.config import AgrConfig, DependencySpec
+from agr.config import AgrConfig
 from agr.fetcher import DiscoveredResource, DiscoveryResult, ResourceType
 
 
@@ -195,8 +195,8 @@ class TestRemoveNamespacedAndToml:
 
         # Create agr.toml with dependency
         config = AgrConfig()
-        config.add_dependency("kasperjunge/commit", DependencySpec(type="skill"))
-        config.add_dependency("alice/review", DependencySpec(type="command"))
+        config.add_remote("kasperjunge/commit", "skill")
+        config.add_remote("alice/review", "command")
         config.save(tmp_path / "agr.toml")
 
         # Create namespaced skill
@@ -208,8 +208,8 @@ class TestRemoveNamespacedAndToml:
 
         # Verify agr.toml was updated
         updated_config = AgrConfig.load(tmp_path / "agr.toml")
-        assert "kasperjunge/commit" not in updated_config.dependencies
-        assert "alice/review" in updated_config.dependencies
+        assert updated_config.get_by_handle("kasperjunge/commit") is None
+        assert updated_config.get_by_handle("alice/review") is not None
 
     def test_remove_with_full_ref(self, tmp_path: Path, monkeypatch):
         """Test that remove works with full ref (username/name)."""
@@ -253,7 +253,7 @@ class TestRemoveNamespacedAndToml:
 
         # Also create agr.toml
         config = AgrConfig()
-        config.add_dependency("alice/review", DependencySpec(type="command"))
+        config.add_remote("alice/review", "command")
         config.save(tmp_path / "agr.toml")
 
         result = runner.invoke(app, ["remove", "--type", "command", "review"])

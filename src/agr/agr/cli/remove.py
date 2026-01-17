@@ -1,17 +1,107 @@
 """Remove subcommand for agr - delete local resources."""
 
+import shutil
+from pathlib import Path
 from typing import Annotated, List, Optional
 
 import typer
 from rich.console import Console
 
-from agr.cli.common import handle_remove_bundle, handle_remove_resource, handle_remove_unified
+from agr.cli.common import handle_remove_bundle, handle_remove_resource, handle_remove_unified, get_base_path
+from agr.config import find_config, AgrConfig
 from agr.fetcher import ResourceType
+from agr.github import get_username_from_git_remote
 
 console = Console()
 
 # Deprecated subcommand names
 DEPRECATED_SUBCOMMANDS = {"skill", "command", "agent", "bundle"}
+
+
+def _is_local_path(ref: str) -> bool:
+    """Check if a reference is a local path."""
+    return ref.startswith(("./", "/", "../"))
+
+
+def _find_repo_root() -> Path:
+    """Find the repository root by looking for .git directory."""
+    current = Path.cwd()
+    while current != current.parent:
+        if (current / ".git").exists():
+            return current
+        current = current.parent
+    return Path.cwd()
+
+
+def handle_remove_local(
+    local_path: str,
+    global_install: bool = False,
+) -> None:
+    """Handle removing a local resource by path.
+
+    Removes from both agr.toml and .claude/ directory.
+
+    Args:
+        local_path: The local path to remove (e.g., "./commands/docs.md")
+        global_install: If True, remove from ~/.claude/
+    """
+    # Find and load config
+    config_path = find_config()
+    if not config_path:
+        console.print("[red]Error: No agr.toml found[/red]")
+        raise typer.Exit(1)
+
+    config = AgrConfig.load(config_path)
+
+    # Check if path is in config
+    dep = config.get_by_path(local_path)
+    if not dep:
+        console.print(f"[red]Error: Path '{local_path}' not found in agr.toml[/red]")
+        raise typer.Exit(1)
+
+    # Get username for finding installed resource
+    repo_root = _find_repo_root()
+    username = get_username_from_git_remote(repo_root)
+    if not username:
+        username = "local"
+
+    # Determine installed path
+    source_path = Path(local_path)
+    name = source_path.stem if source_path.is_file() else source_path.name
+
+    type_to_subdir = {
+        "skill": "skills",
+        "command": "commands",
+        "agent": "agents",
+        "package": "packages",
+    }
+    subdir = type_to_subdir.get(dep.type, "skills")
+
+    base_path = get_base_path(global_install)
+
+    if dep.type in ("skill", "package"):
+        installed_path = base_path / subdir / username / name
+    else:
+        installed_path = base_path / subdir / username / f"{name}.md"
+
+    # Remove from .claude/
+    if installed_path.exists():
+        if installed_path.is_dir():
+            shutil.rmtree(installed_path)
+        else:
+            installed_path.unlink()
+        console.print(f"[green]Removed from .claude/: {installed_path.relative_to(base_path)}[/green]")
+
+        # Clean up empty parent directories
+        parent = installed_path.parent
+        if parent.exists() and not any(parent.iterdir()):
+            parent.rmdir()
+
+    # Remove from config
+    config.remove_by_path(local_path)
+    config.save(config_path)
+
+    console.print(f"[green]Removed '{local_path}' from agr.toml[/green]")
 
 
 def extract_type_from_args(
@@ -56,7 +146,7 @@ def remove_unified(
     ctx: typer.Context,
     args: Annotated[
         Optional[List[str]],
-        typer.Argument(help="Name of the resource to remove"),
+        typer.Argument(help="Name or path of the resource to remove"),
     ] = None,
     resource_type: Annotated[
         Optional[str],
@@ -80,10 +170,15 @@ def remove_unified(
     Auto-detects the resource type (skill, command, agent) from local files.
     Use --type to explicitly specify when a name exists in multiple types.
 
+    Supports both resource names and local paths:
+      agr remove hello-world          # Remove by name
+      agr remove ./commands/docs.md   # Remove by path
+
     Examples:
       agr remove hello-world
       agr remove hello-world --type skill
       agr remove hello-world --global
+      agr remove ./commands/docs.md
     """
     # Extract --type/-t from args if it was captured there (happens when type comes after name)
     cleaned_args, resource_type = extract_type_from_args(args, resource_type)
@@ -93,6 +188,11 @@ def remove_unified(
         raise typer.Exit(0)
 
     first_arg = cleaned_args[0]
+
+    # Handle local paths
+    if _is_local_path(first_arg):
+        handle_remove_local(first_arg, global_install)
+        return
 
     # Handle deprecated subcommand syntax: agr remove skill <name>
     if first_arg in DEPRECATED_SUBCOMMANDS:

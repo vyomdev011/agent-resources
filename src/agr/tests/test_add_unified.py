@@ -319,10 +319,10 @@ class TestAddNamespacedAndToml:
 
         result = runner.invoke(app, ["add", "kasperjunge/commit"])
 
-        # Verify agr.toml has both entries
+        # Verify agr.toml has both entries (old entry migrated + new entry)
         config = AgrConfig.load(existing_toml)
-        assert "alice/review" in config.dependencies
-        assert "kasperjunge/commit" in config.dependencies
+        assert config.get_by_handle("alice/review") is not None
+        assert config.get_by_handle("kasperjunge/commit") is not None
 
     @patch("agr.cli.common.downloaded_repo")
     @patch("agr.cli.common.discover_resource_type_from_dir")
@@ -351,7 +351,8 @@ class TestAddNamespacedAndToml:
 
         # Verify dependency format is correct
         config = AgrConfig.load(tmp_path / "agr.toml")
-        assert "kasperjunge/commit" in config.dependencies
+        dep = config.get_by_handle("kasperjunge/commit")
+        assert dep is not None
         # Verify format: username/name, not username/repo/name for default repo
 
     @patch("agr.cli.common.downloaded_repo")
@@ -381,7 +382,8 @@ class TestAddNamespacedAndToml:
 
         # Verify full ref is stored when using custom repo
         config = AgrConfig.load(tmp_path / "agr.toml")
-        assert "kasperjunge/custom-repo/commit" in config.dependencies
+        dep = config.get_by_handle("kasperjunge/custom-repo/commit")
+        assert dep is not None
 
     @patch("agr.cli.common.fetch_resource")
     def test_explicit_type_installs_to_namespaced_path(self, mock_fetch, tmp_path, monkeypatch):

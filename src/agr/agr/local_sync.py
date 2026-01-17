@@ -1,5 +1,10 @@
 """Local resource sync functionality.
 
+DEPRECATED: This module is kept for backward compatibility but is no longer
+used by 'agr sync'. The new sync behavior only syncs resources explicitly
+listed in the agr.toml dependencies array. Resources should be added via
+'agr add ./path' which both adds to agr.toml and installs to .claude/.
+
 Syncs resources from convention paths (skills/, commands/, agents/, packages/)
 to the .claude/ environment directory.
 """

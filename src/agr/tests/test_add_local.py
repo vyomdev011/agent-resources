@@ -32,9 +32,13 @@ class TestAddLocal:
 
         # Verify agr.toml was created/updated
         config = AgrConfig.load(tmp_path / "agr.toml")
-        assert "my-skill" in config.local
-        assert config.local["my-skill"].path == "./custom/my-skill"
-        assert config.local["my-skill"].type == "skill"
+        dep = config.get_by_path("./custom/my-skill")
+        assert dep is not None
+        assert dep.type == "skill"
+
+        # Verify installed to .claude/
+        installed = tmp_path / ".claude" / "skills" / "local" / "my-skill" / "SKILL.md"
+        assert installed.exists()
 
     def test_add_local_command_file(self, tmp_path: Path, monkeypatch):
         """Test adding a local command file."""
@@ -52,26 +56,34 @@ class TestAddLocal:
         assert "Added local command 'deploy'" in result.output
 
         config = AgrConfig.load(tmp_path / "agr.toml")
-        assert "deploy" in config.local
-        assert config.local["deploy"].type == "command"
+        dep = config.get_by_path("./scripts/deploy.md")
+        assert dep is not None
+        assert dep.type == "command"
 
-    def test_add_local_with_package(self, tmp_path: Path, monkeypatch):
-        """Test adding a local resource to a package."""
+        # Verify installed to .claude/
+        installed = tmp_path / ".claude" / "commands" / "local" / "deploy.md"
+        assert installed.exists()
+
+    def test_add_local_with_package_type(self, tmp_path: Path, monkeypatch):
+        """Test adding a local package."""
         monkeypatch.chdir(tmp_path)
         (tmp_path / ".git").mkdir()
 
-        # Create local skill
-        skill_dir = tmp_path / "lib" / "helper"
-        skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text("# Helper")
+        # Create local package with subdirs
+        pkg_dir = tmp_path / "packages" / "utils"
+        pkg_dir.mkdir(parents=True)
+        (pkg_dir / "skills").mkdir()
+        (pkg_dir / "commands").mkdir()
 
-        result = runner.invoke(app, ["add", "./lib/helper", "--to", "utils"])
+        result = runner.invoke(app, ["add", "./packages/utils", "--type", "package"])
 
         assert result.exit_code == 0
-        assert "package: utils" in result.output
+        assert "Added local package" in result.output or "Added" in result.output
 
         config = AgrConfig.load(tmp_path / "agr.toml")
-        assert config.local["helper"].package == "utils"
+        dep = config.get_by_path("./packages/utils")
+        assert dep is not None
+        assert dep.type == "package"
 
     def test_add_local_errors_nonexistent_path(self, tmp_path: Path, monkeypatch):
         """Test that adding nonexistent path errors."""
@@ -112,7 +124,9 @@ class TestAddLocal:
         assert "Added local agent" in result.output
 
         config = AgrConfig.load(tmp_path / "agr.toml")
-        assert config.local["task"].type == "agent"
+        dep = config.get_by_path("./scripts/task.md")
+        assert dep is not None
+        assert dep.type == "agent"
 
     def test_add_local_auto_detects_skill(self, tmp_path: Path, monkeypatch):
         """Test that skill is auto-detected from SKILL.md."""
@@ -142,6 +156,42 @@ class TestAddLocal:
         assert "command" in result.output
 
 
+class TestAddGlob:
+    """Tests for adding multiple local resources via glob patterns."""
+
+    def test_add_glob_pattern(self, tmp_path: Path, monkeypatch):
+        """Test adding multiple files with glob pattern."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        # Create multiple command files
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "deploy.md").write_text("# Deploy")
+        (commands_dir / "build.md").write_text("# Build")
+        (commands_dir / "test.md").write_text("# Test")
+
+        result = runner.invoke(app, ["add", "./commands/*.md"])
+
+        assert result.exit_code == 0
+        assert "Added" in result.output
+
+        # Verify all were added
+        config = AgrConfig.load(tmp_path / "agr.toml")
+        local_deps = config.get_local_dependencies()
+        assert len(local_deps) == 3
+
+    def test_add_glob_no_matches(self, tmp_path: Path, monkeypatch):
+        """Test error when glob pattern matches nothing."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        result = runner.invoke(app, ["add", "./nonexistent/*.md"])
+
+        assert result.exit_code == 1
+        assert "No files match" in result.output
+
+
 class TestIsLocalPath:
     """Tests for _is_local_path helper."""
 
@@ -164,3 +214,23 @@ class TestIsLocalPath:
     def test_rejects_remote_ref_with_repo(self):
         from agr.cli.add import _is_local_path
         assert _is_local_path("kasperjunge/repo/name") is False
+
+
+class TestIsGlobPattern:
+    """Tests for _is_glob_pattern helper."""
+
+    def test_recognizes_asterisk(self):
+        from agr.cli.add import _is_glob_pattern
+        assert _is_glob_pattern("./commands/*.md") is True
+
+    def test_recognizes_question_mark(self):
+        from agr.cli.add import _is_glob_pattern
+        assert _is_glob_pattern("./commands/?.md") is True
+
+    def test_recognizes_brackets(self):
+        from agr.cli.add import _is_glob_pattern
+        assert _is_glob_pattern("./commands/[abc].md") is True
+
+    def test_rejects_plain_path(self):
+        from agr.cli.add import _is_glob_pattern
+        assert _is_glob_pattern("./commands/deploy.md") is False

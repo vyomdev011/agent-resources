@@ -7,7 +7,7 @@ import pytest
 from typer.testing import CliRunner
 
 from agr.cli.main import app
-from agr.config import AgrConfig, DependencySpec
+from agr.config import AgrConfig
 
 
 runner = CliRunner()
@@ -49,8 +49,8 @@ class TestSyncCommand:
 
         # Create agr.toml with dependencies
         config = AgrConfig()
-        config.add_dependency("kasperjunge/commit", DependencySpec(type="skill"))
-        config.add_dependency("alice/review", DependencySpec(type="command"))
+        config.add_remote("kasperjunge/commit", "skill")
+        config.add_remote("alice/review", "command")
         config.save(tmp_path / "agr.toml")
 
         # Create .claude directory but no installed resources
@@ -72,7 +72,7 @@ class TestSyncCommand:
 
         # Create agr.toml with dependency
         config = AgrConfig()
-        config.add_dependency("kasperjunge/commit", DependencySpec(type="skill"))
+        config.add_remote("kasperjunge/commit", "skill")
         config.save(tmp_path / "agr.toml")
 
         # Create already installed skill in namespaced path
@@ -94,7 +94,7 @@ class TestSyncCommand:
 
         # Create agr.toml with one dependency
         config = AgrConfig()
-        config.add_dependency("kasperjunge/commit", DependencySpec(type="skill"))
+        config.add_remote("kasperjunge/commit", "skill")
         config.save(tmp_path / "agr.toml")
 
         # Create installed skill that IS in toml
@@ -147,7 +147,7 @@ class TestSyncCommand:
 
         # Create agr.toml with custom repo dependency
         config = AgrConfig()
-        config.add_dependency("kasperjunge/custom-repo/commit", DependencySpec(type="skill"))
+        config.add_remote("kasperjunge/custom-repo/commit", "skill")
         config.save(tmp_path / "agr.toml")
 
         # Create .claude directory
@@ -172,7 +172,7 @@ class TestSyncCommand:
 
         # Create agr.toml without type specified
         config = AgrConfig()
-        config.add_dependency("kasperjunge/commit", DependencySpec())  # No type
+        config.add_remote("kasperjunge/commit", "skill")  # Default type is skill
         config.save(tmp_path / "agr.toml")
 
         # Create .claude directory

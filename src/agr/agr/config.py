@@ -10,26 +10,63 @@ from tomlkit.exceptions import TOMLKitError
 from agr.exceptions import ConfigParseError
 
 
+# Valid resource types
+VALID_TYPES = {"skill", "command", "agent", "package"}
+
+
+@dataclass
+class Dependency:
+    """Unified dependency specification for agr.toml.
+
+    A dependency can be either remote (GitHub handle) or local (file path).
+
+    Examples:
+        Remote: { handle = "kasperjunge/commit", type = "skill" }
+        Local:  { path = "./commands/docs.md", type = "command" }
+    """
+
+    type: str  # "skill", "command", "agent", "package" - always explicit
+    handle: str | None = None  # Remote GitHub reference (e.g., "kasperjunge/commit")
+    path: str | None = None  # Local file/directory path (e.g., "./commands/docs.md")
+
+    def __post_init__(self) -> None:
+        """Validate dependency has exactly one source."""
+        if self.handle and self.path:
+            raise ValueError("Dependency cannot have both handle and path")
+        if not self.handle and not self.path:
+            raise ValueError("Dependency must have either handle or path")
+
+    @property
+    def is_local(self) -> bool:
+        """Return True if this is a local path dependency."""
+        return self.path is not None
+
+    @property
+    def is_remote(self) -> bool:
+        """Return True if this is a remote GitHub dependency."""
+        return self.handle is not None
+
+    @property
+    def identifier(self) -> str:
+        """Return unique identifier (path or handle)."""
+        return self.path or self.handle or ""
+
+
+# Legacy dataclasses for migration support
 @dataclass
 class DependencySpec:
-    """Specification for a dependency in agr.toml."""
+    """Legacy: Specification for a dependency in old agr.toml format."""
 
-    type: str | None = None  # "skill", "command", "agent"
+    type: str | None = None
 
 
 @dataclass
 class LocalResourceSpec:
-    """Specification for a local resource outside convention paths.
-
-    Used for the [local] section in agr.toml:
-
-    [local]
-    "custom-skill" = { path = "./my-resources/custom-skill", type = "skill" }
-    """
+    """Legacy: Specification for a local resource in old agr.toml format."""
 
     path: str
-    type: str | None = None  # "skill", "command", "agent"
-    package: str | None = None  # Optional package to include in
+    type: str | None = None
+    package: str | None = None
 
 
 @dataclass
@@ -37,25 +74,91 @@ class AgrConfig:
     """
     Configuration loaded from agr.toml.
 
-    The config file tracks dependencies and local resources:
+    New unified format (list):
+    dependencies = [
+        { handle = "kasperjunge/commit", type = "skill" },
+        { path = "./commands/docs.md", type = "command" },
+    ]
 
+    Old format (tables) is auto-migrated on load:
     [dependencies]
     "kasperjunge/commit" = {}
-    "alice/review" = { type = "skill" }
 
     [local]
     "custom-skill" = { path = "./my-resources/custom-skill", type = "skill" }
     """
 
-    dependencies: dict[str, DependencySpec] = field(default_factory=dict)
-    local: dict[str, LocalResourceSpec] = field(default_factory=dict)
+    dependencies: list[Dependency] = field(default_factory=list)
     _document: TOMLDocument | None = field(default=None, repr=False)
     _path: Path | None = field(default=None, repr=False)
+    _migrated: bool = field(default=False, repr=False)  # Track if migration occurred
+
+    @classmethod
+    def _is_new_format(cls, doc: TOMLDocument) -> bool:
+        """Detect if document uses new list-based format."""
+        deps = doc.get("dependencies")
+        # New format: dependencies is a list
+        return isinstance(deps, list)
+
+    @classmethod
+    def _migrate_old_format(
+        cls, doc: TOMLDocument
+    ) -> tuple[list[Dependency], bool]:
+        """Migrate old table-based format to new list format.
+
+        Returns:
+            Tuple of (dependencies_list, was_migrated)
+        """
+        dependencies: list[Dependency] = []
+
+        # Parse old [dependencies] table section
+        deps_section = doc.get("dependencies", {})
+        if isinstance(deps_section, dict):
+            for ref, spec in deps_section.items():
+                dep_type = "skill"  # Default type for old format
+                if isinstance(spec, dict) and spec.get("type"):
+                    dep_type = spec["type"]
+                dependencies.append(Dependency(handle=ref, type=dep_type))
+
+        # Parse old [local] section
+        local_section = doc.get("local", {})
+        if isinstance(local_section, dict):
+            for _name, spec in local_section.items():
+                if isinstance(spec, dict) and "path" in spec:
+                    dep_type = spec.get("type", "skill")
+                    dependencies.append(Dependency(path=spec["path"], type=dep_type))
+
+        was_migrated = bool(deps_section) or bool(local_section)
+        return dependencies, was_migrated
+
+    @classmethod
+    def _parse_new_format(cls, doc: TOMLDocument) -> list[Dependency]:
+        """Parse new list-based format."""
+        dependencies: list[Dependency] = []
+        deps_list = doc.get("dependencies", [])
+
+        for item in deps_list:
+            if not isinstance(item, dict):
+                continue
+
+            dep_type = item.get("type", "skill")
+            handle = item.get("handle")
+            path = item.get("path")
+
+            if handle:
+                dependencies.append(Dependency(handle=handle, type=dep_type))
+            elif path:
+                dependencies.append(Dependency(path=path, type=dep_type))
+
+        return dependencies
 
     @classmethod
     def load(cls, path: Path) -> "AgrConfig":
         """
         Load configuration from an agr.toml file.
+
+        Supports both new list format and old table format.
+        Old format is auto-migrated in memory and will be saved in new format.
 
         Args:
             path: Path to the agr.toml file
@@ -81,31 +184,17 @@ class AgrConfig:
         config._document = doc
         config._path = path
 
-        # Parse dependencies section
-        deps_section = doc.get("dependencies", {})
-        for ref, spec in deps_section.items():
-            if isinstance(spec, dict):
-                config.dependencies[ref] = DependencySpec(
-                    type=spec.get("type")
-                )
-            else:
-                config.dependencies[ref] = DependencySpec()
-
-        # Parse local section
-        local_section = doc.get("local", {})
-        for name, spec in local_section.items():
-            if isinstance(spec, dict) and "path" in spec:
-                config.local[name] = LocalResourceSpec(
-                    path=spec["path"],
-                    type=spec.get("type"),
-                    package=spec.get("package"),
-                )
+        if cls._is_new_format(doc):
+            config.dependencies = cls._parse_new_format(doc)
+            config._migrated = False
+        else:
+            config.dependencies, config._migrated = cls._migrate_old_format(doc)
 
         return config
 
     def save(self, path: Path | None = None) -> None:
         """
-        Save configuration to an agr.toml file.
+        Save configuration to an agr.toml file in new list format.
 
         Args:
             path: Path to save to (uses original path if not specified)
@@ -114,93 +203,109 @@ class AgrConfig:
         if save_path is None:
             raise ValueError("No path specified for saving config")
 
-        # Use existing document to preserve comments, or create new one
-        if self._document is not None:
-            doc = self._document
-        else:
-            doc = tomlkit.document()
+        # Always create fresh document for new format
+        doc = tomlkit.document()
 
-        # Update dependencies section
-        if "dependencies" not in doc:
-            doc["dependencies"] = tomlkit.table()
+        # Build dependencies array
+        deps_array = tomlkit.array()
+        deps_array.multiline(True)
 
-        deps_table = doc["dependencies"]
+        for dep in self.dependencies:
+            item = tomlkit.inline_table()
+            if dep.handle:
+                item["handle"] = dep.handle
+            if dep.path:
+                item["path"] = dep.path
+            item["type"] = dep.type
+            deps_array.append(item)
 
-        # Clear existing dependencies and rebuild
-        # First, collect keys to remove
-        existing_keys = list(deps_table.keys())
-        for key in existing_keys:
-            del deps_table[key]
-
-        # Add current dependencies
-        for ref, spec in self.dependencies.items():
-            if spec.type:
-                deps_table[ref] = {"type": spec.type}
-            else:
-                deps_table[ref] = {}
-
-        # Update local section if we have local resources
-        if self.local:
-            if "local" not in doc:
-                doc["local"] = tomlkit.table()
-
-            local_table = doc["local"]
-
-            # Clear existing local entries
-            existing_keys = list(local_table.keys())
-            for key in existing_keys:
-                del local_table[key]
-
-            # Add current local resources
-            for name, spec in self.local.items():
-                entry = {"path": spec.path}
-                if spec.type:
-                    entry["type"] = spec.type
-                if spec.package:
-                    entry["package"] = spec.package
-                local_table[name] = entry
+        doc["dependencies"] = deps_array
 
         save_path.write_text(tomlkit.dumps(doc))
         self._document = doc
         self._path = save_path
+        self._migrated = False
 
-    def add_dependency(self, ref: str, spec: DependencySpec) -> None:
+    def add_dependency(self, dep: Dependency) -> None:
         """
         Add or update a dependency.
 
-        Args:
-            ref: Dependency reference (e.g., "kasperjunge/commit")
-            spec: Dependency specification
-        """
-        self.dependencies[ref] = spec
-
-    def remove_dependency(self, ref: str) -> None:
-        """
-        Remove a dependency.
+        If a dependency with the same identifier exists, it's replaced.
 
         Args:
-            ref: Dependency reference to remove
+            dep: Dependency to add
         """
-        self.dependencies.pop(ref, None)
+        # Remove existing with same identifier
+        self.dependencies = [
+            d for d in self.dependencies if d.identifier != dep.identifier
+        ]
+        self.dependencies.append(dep)
 
-    def add_local(self, name: str, spec: LocalResourceSpec) -> None:
+    def add_remote(self, handle: str, resource_type: str) -> None:
         """
-        Add or update a local resource.
-
-        Args:
-            name: Local resource name
-            spec: Local resource specification
-        """
-        self.local[name] = spec
-
-    def remove_local(self, name: str) -> None:
-        """
-        Remove a local resource.
+        Add a remote GitHub dependency.
 
         Args:
-            name: Local resource name to remove
+            handle: GitHub reference (e.g., "kasperjunge/commit")
+            resource_type: Type of resource ("skill", "command", "agent")
         """
-        self.local.pop(name, None)
+        self.add_dependency(Dependency(handle=handle, type=resource_type))
+
+    def add_local(self, path: str, resource_type: str) -> None:
+        """
+        Add a local path dependency.
+
+        Args:
+            path: Local file/directory path
+            resource_type: Type of resource ("skill", "command", "agent", "package")
+        """
+        self.add_dependency(Dependency(path=path, type=resource_type))
+
+    def remove_dependency(self, identifier: str) -> bool:
+        """
+        Remove a dependency by its identifier (handle or path).
+
+        Args:
+            identifier: Handle or path to remove
+
+        Returns:
+            True if removed, False if not found
+        """
+        original_len = len(self.dependencies)
+        self.dependencies = [
+            d for d in self.dependencies if d.identifier != identifier
+        ]
+        return len(self.dependencies) < original_len
+
+    def remove_by_handle(self, handle: str) -> bool:
+        """Remove a remote dependency by handle."""
+        return self.remove_dependency(handle)
+
+    def remove_by_path(self, path: str) -> bool:
+        """Remove a local dependency by path."""
+        return self.remove_dependency(path)
+
+    def get_by_handle(self, handle: str) -> Dependency | None:
+        """Find a dependency by its handle."""
+        for dep in self.dependencies:
+            if dep.handle == handle:
+                return dep
+        return None
+
+    def get_by_path(self, path: str) -> Dependency | None:
+        """Find a dependency by its path."""
+        for dep in self.dependencies:
+            if dep.path == path:
+                return dep
+        return None
+
+    def get_local_dependencies(self) -> list[Dependency]:
+        """Return all local path dependencies."""
+        return [d for d in self.dependencies if d.is_local]
+
+    def get_remote_dependencies(self) -> list[Dependency]:
+        """Return all remote GitHub dependencies."""
+        return [d for d in self.dependencies if d.is_remote]
 
 
 def find_config(start_path: Path | None = None) -> Path | None:
