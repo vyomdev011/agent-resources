@@ -4,16 +4,17 @@ title: Introduction
 
 # Introduction
 
-Agent Resources (agr) is a CLI for installing and creating Claude Code resources from GitHub.
+Agent Resources (agr) is a CLI for installing, managing, and sharing Claude Code resources from GitHub.
 It lets you pull skills, slash commands, and subagents into your local `.claude/` folder with a
-single command.
+single command—and track them as project dependencies.
 
 ## Highlights
 
-- Install a skill, command, or sub-agent from GitHub in seconds
-- Share skills, slash commands, and subagents with a simple handle like `username/skillname`
-- Create a personal library of skills, subagents, and slash commands you can install anywhere with one command
-- Skip the configuration overhead of Anthropics plugin marketplaces
+- **Install resources instantly** — Add skills, commands, and agents from GitHub with one command
+- **Track dependencies** — Declare resources in `agr.toml` and sync across machines
+- **Organized by default** — Resources install to namespaced paths that prevent conflicts
+- **Auto-detection** — No need to specify resource types; agr figures it out
+- **Share easily** — Create and publish your own resources with `agr init`
 
 ## Quick start
 
@@ -32,26 +33,46 @@ agr add kasperjunge/hello-world
 
 The resource type (skill, command, agent, or bundle) is auto-detected.
 
-## What agr installs
+## Where resources go
 
-agr installs files into one of these locations:
+Resources install to organized, namespaced paths:
 
 ```
 ./
 └── .claude/
     ├── skills/
+    │   └── kasperjunge/
+    │       └── hello-world/
     ├── commands/
+    │   └── kasperjunge/
+    │       └── review.md
     └── agents/
+        └── kasperjunge/
+            └── expert.md
 ```
 
-Or globally:
+Or globally with `--global`:
 
 ```
 ~/
 └── .claude/
-    ├── skills/
-    ├── commands/
-    └── agents/
+    └── ...
+```
+
+## Track your dependencies
+
+**New in v0.4.0:** agr automatically tracks resources in `agr.toml`:
+
+```toml
+[dependencies]
+"kasperjunge/hello-world" = {}
+"madsnorgaard/drupal-expert" = { type = "skill" }
+```
+
+Sync your resources on any machine:
+
+```bash
+agr sync
 ```
 
 ## How it works
@@ -67,11 +88,15 @@ agent-resources/
 ```
 
 By default, `agr add` looks in a repository named `agent-resources` on the user's GitHub account.
-If a repo has a different name, include it in the reference.
+If a repo has a different name, include it in the reference:
+
+```bash
+agr add username/custom-repo/resource-name
+```
 
 ## Next steps
 
 - Start with [Installation](getting-started/installation.md)
-- Learn common workflows in [Installing resources](guides/installing-resources.md)
-- Understand the model in [Resource types](concepts/resource-types.md)
+- Follow [First steps](getting-started/first-steps.md) for a complete walkthrough
+- Learn about [Managing dependencies](guides/managing-dependencies.md) with `agr.toml`
 - Browse full CLI details in [CLI reference](reference/cli.md)

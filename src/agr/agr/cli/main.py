@@ -5,6 +5,7 @@ import typer
 from agr.cli.add import app as add_app
 from agr.cli.init import app as init_app
 from agr.cli.remove import app as remove_app
+from agr.cli.sync import sync as sync_command
 from agr.cli.update import app as update_app
 
 app = typer.Typer(
@@ -19,6 +20,9 @@ app.add_typer(add_app, name="add")
 app.add_typer(init_app, name="init")
 app.add_typer(remove_app, name="remove")
 app.add_typer(update_app, name="update")
+
+# Register sync command
+app.command()(sync_command)
 
 
 def main() -> None:

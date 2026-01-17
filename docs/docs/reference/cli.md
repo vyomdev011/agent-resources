@@ -48,6 +48,26 @@ agr add username/backend:hello-world
 agr add kasperjunge/anthropic
 ```
 
+### Where resources go
+
+Resources install to namespaced paths organized by username:
+
+```
+.claude/
+└── skills/
+    └── kasperjunge/
+        └── hello-world/
+```
+
+### Dependency tracking
+
+When you add a resource, it's automatically recorded in `agr.toml`:
+
+```toml
+[dependencies]
+"kasperjunge/hello-world" = {}
+```
+
 ### Disambiguation
 
 If the same name exists in multiple resource types, `agr add` will prompt you to use `--type`:
@@ -58,6 +78,59 @@ Use --type to specify which one to install:
   agr add kasperjunge/hello --type skill
   agr add kasperjunge/hello --type command
 ```
+
+## agr sync
+
+Synchronize installed resources with `agr.toml`.
+
+### Syntax
+
+```bash
+agr sync
+agr sync --prune
+agr sync --global
+```
+
+### Options
+
+- `--global`, `-g`: Sync resources in `~/.claude/` instead of the current directory
+- `--prune`, `-p`: Remove namespaced resources not listed in `agr.toml`
+
+### Examples
+
+```bash
+# Install missing resources from agr.toml
+agr sync
+
+# Install missing and remove unlisted resources
+agr sync --prune
+
+# Sync global resources
+agr sync --global
+```
+
+### Behavior
+
+| Scenario | Action |
+|----------|--------|
+| Resource in agr.toml, not installed | Installs the resource |
+| Resource in agr.toml, already installed | Skips (no action) |
+| Resource installed, not in agr.toml | Keeps (unless `--prune`) |
+| `--prune` with unlisted resource | Removes namespaced resources only |
+
+### Output
+
+```
+Syncing resources from agr.toml...
+✓ Installed kasperjunge/hello-world (skill)
+• Skipped madsnorgaard/drupal-expert (already installed)
+✓ Pruned acme/old-resource
+
+Summary: 1 installed, 1 skipped, 1 pruned, 0 failed
+```
+
+!!! note
+    Pruning only affects resources in namespaced paths (e.g., `.claude/skills/username/`). Resources installed with older versions of agr in flat paths are preserved.
 
 ## agr update
 
@@ -93,6 +166,7 @@ Remove resources from the local installation with auto-detection.
 
 ```bash
 agr remove <name>
+agr remove <username>/<name>
 ```
 
 Auto-detects the resource type from installed files.
@@ -108,6 +182,9 @@ Auto-detects the resource type from installed files.
 # Auto-detect resource type
 agr remove hello-world
 
+# Remove by full reference
+agr remove kasperjunge/hello-world
+
 # With explicit type (for disambiguation)
 agr remove hello --type skill
 
@@ -117,6 +194,10 @@ agr remove hello-world --global
 # Remove a bundle
 agr remove anthropic --type bundle
 ```
+
+### Dependency tracking
+
+When you remove a resource, it's automatically removed from `agr.toml`.
 
 ### Disambiguation
 

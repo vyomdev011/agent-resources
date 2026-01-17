@@ -1,0 +1,2 @@
+[dependencies]
+"madsnorgaard/drupal-expert" = { type = "skill" }

@@ -22,27 +22,44 @@ Full form (custom repo name):
 
 Examples:
 
-```
-agr add skill kasperjunge/hello-world
-agr add command acme/tools/review
+```bash
+agr add kasperjunge/hello-world
+agr add acme/tools/review
 ```
 
 ## Nested resources with colons
 
 A resource name may include `:` to represent nested folders:
 
-```
-agr add skill username/backend:hello-world
-```
-
-This maps to:
-
-```
-./
-└── .claude/
-    └── skills/
-        └── backend/
-            └── hello-world/
+```bash
+agr add username/backend:hello-world
 ```
 
-Commands and agents follow the same rule, with `.md` files at the end of the path.
+This maps to a resource at `.claude/skills/backend/hello-world/` in the source repository.
+
+## How references become paths
+
+When you install a resource, the reference determines where it goes:
+
+| Reference | Installed path |
+|-----------|----------------|
+| `kasperjunge/hello-world` | `.claude/skills/kasperjunge/hello-world/` |
+| `acme/tools/review` | `.claude/commands/acme/review.md` |
+
+The username becomes a namespace directory, keeping resources organized by author.
+
+## Using references with commands
+
+All agr commands accept references in the same format:
+
+```bash
+# Add
+agr add kasperjunge/hello-world
+
+# Remove (can use just the name or full reference)
+agr remove hello-world
+agr remove kasperjunge/hello-world
+
+# Run temporarily
+agrx kasperjunge/hello-world
+```

@@ -74,6 +74,7 @@ class DiscoveredResource:
     name: str
     resource_type: ResourceType
     path_segments: list[str]
+    username: str | None = None  # Username for namespaced resources
 
 
 @dataclass
@@ -265,6 +266,7 @@ def fetch_resource_from_repo_dir(
     dest: Path,
     resource_type: ResourceType,
     overwrite: bool = False,
+    username: str | None = None,
 ) -> Path:
     """
     Fetch a resource from an already-downloaded repo directory.
@@ -275,9 +277,11 @@ def fetch_resource_from_repo_dir(
         repo_dir: Path to extracted repository
         name: Display name of the resource
         path_segments: Path segments for the resource
-        dest: Destination directory
+        dest: Destination directory (e.g., .claude/skills/)
         resource_type: Type of resource
         overwrite: Whether to overwrite existing resource
+        username: GitHub username for namespaced installation (e.g., "kasperjunge")
+                  When provided, installs to dest/username/name/ instead of dest/name/
 
     Returns:
         Path to the installed resource
@@ -287,7 +291,15 @@ def fetch_resource_from_repo_dir(
         ResourceExistsError: If resource exists locally and overwrite=False
     """
     config = RESOURCE_CONFIGS[resource_type]
-    resource_dest = _build_resource_path(dest, config, path_segments)
+
+    # Build destination path - namespaced if username provided
+    if username:
+        # Namespaced path: .claude/skills/username/name/
+        namespaced_dest = dest / username
+        resource_dest = _build_resource_path(namespaced_dest, config, path_segments)
+    else:
+        # Flat path (backward compat): .claude/skills/name/
+        resource_dest = _build_resource_path(dest, config, path_segments)
 
     # Check if resource already exists locally
     if resource_dest.exists() and not overwrite:
@@ -394,25 +406,28 @@ def fetch_bundle_from_repo_dir(
 
 
 def fetch_resource(
-    username: str,
+    repo_username: str,
     repo_name: str,
     name: str,
     path_segments: list[str],
     dest: Path,
     resource_type: ResourceType,
     overwrite: bool = False,
+    username: str | None = None,
 ) -> Path:
     """
     Fetch a resource from a user's GitHub repo and copy it to dest.
 
     Args:
-        username: GitHub username
+        repo_username: GitHub username (repo owner)
         repo_name: GitHub repository name
         name: Display name of the resource (may contain colons for nested paths)
         path_segments: Path segments for the resource (e.g., ['dir', 'hello-world'])
         dest: Destination directory (e.g., .claude/skills/, .claude/commands/)
         resource_type: Type of resource (SKILL, COMMAND, or AGENT)
         overwrite: Whether to overwrite existing resource
+        username: GitHub username for namespaced installation (when provided,
+                  installs to dest/username/name/ instead of dest/name/)
 
     Returns:
         Path to the installed resource
@@ -423,7 +438,13 @@ def fetch_resource(
         ResourceExistsError: If resource exists locally and overwrite=False
     """
     config = RESOURCE_CONFIGS[resource_type]
-    resource_dest = _build_resource_path(dest, config, path_segments)
+
+    # Build destination path - namespaced if username provided
+    if username:
+        namespaced_dest = dest / username
+        resource_dest = _build_resource_path(namespaced_dest, config, path_segments)
+    else:
+        resource_dest = _build_resource_path(dest, config, path_segments)
 
     # Check if resource already exists locally
     if resource_dest.exists() and not overwrite:
@@ -434,11 +455,11 @@ def fetch_resource(
 
     # Download tarball
     tarball_url = (
-        f"https://github.com/{username}/{repo_name}/archive/refs/heads/main.tar.gz"
+        f"https://github.com/{repo_username}/{repo_name}/archive/refs/heads/main.tar.gz"
     )
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        repo_dir = _download_and_extract_tarball(tarball_url, username, repo_name, Path(tmp_dir))
+        repo_dir = _download_and_extract_tarball(tarball_url, repo_username, repo_name, Path(tmp_dir))
         source_base = repo_dir / config.source_subdir
         resource_source = _build_resource_path(source_base, config, path_segments)
 
@@ -450,7 +471,7 @@ def fetch_resource(
             else:
                 expected_location = f"{config.source_subdir}/{nested_path}{config.file_extension}"
             raise ResourceNotFoundError(
-                f"{resource_type.value.capitalize()} '{name}' not found in {username}/{repo_name}.\n"
+                f"{resource_type.value.capitalize()} '{name}' not found in {repo_username}/{repo_name}.\n"
                 f"Expected location: {expected_location}"
             )
 

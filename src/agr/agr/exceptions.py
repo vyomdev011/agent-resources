@@ -23,3 +23,11 @@ class BundleNotFoundError(AgrError):
 
 class MultipleResourcesFoundError(AgrError):
     """Raised when a resource name exists in multiple resource types."""
+
+
+class ConfigNotFoundError(AgrError):
+    """Raised when agr.toml is required but not found."""
+
+
+class ConfigParseError(AgrError):
+    """Raised when agr.toml contains invalid TOML syntax."""

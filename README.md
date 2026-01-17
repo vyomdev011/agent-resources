@@ -4,18 +4,18 @@
 
 **Share and install Claude Code skills, commands, and agents with a single command.**
 
-*A package and project manager for AI agents.*
+*A package manager for AI agents.*
 
 [![PyPI](https://img.shields.io/pypi/v/agr?color=blue)](https://pypi.org/project/agr/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[Try It](#try-it-now) • [Install](#install-any-resource) • [Create Your Own](#create-your-own) • [Community](#community-resources)
+[Quick Start](#quick-start) • [Dependency Tracking](#dependency-tracking) • [Create Your Own](#create-your-own) • [Community](#community-resources)
 
 </div>
 
 ---
 
-## Try It Now
+## Quick Start
 
 No installation needed. Just run:
 
@@ -39,37 +39,78 @@ agr add kasperjunge/hello-world
 ```bash
 agr add <username>/<name>                # Auto-detects resource type
 agr add <username>/<name> --type skill   # Explicit type (if needed)
+agr add <username>/<repo>/<name>         # From a custom repository
 ```
 
-The resource type (skill, command, agent, or bundle) is auto-detected. Use `--type` to disambiguate if the same name exists in multiple types.
+Resources install to organized namespaced paths:
 
-### Default Repository Convention
-
-If you name your repo `agent-resources`, users only need to specify your username and resource name:
-
-```bash
-# Installs from github.com/kasperjunge/agent-resources
-agr add kasperjunge/hello-world
+```
+.claude/
+└── skills/
+    └── kasperjunge/           # Organized by username
+        └── hello-world/
 ```
 
-### Install From Any Repository
-
-You can install from any GitHub repository that has the `.claude/` structure. Just use the three-part format:
-
-```bash
-# Installs from github.com/username/custom-repo
-agr add username/custom-repo/my-skill
-```
+This prevents naming conflicts and keeps your resources organized.
 
 ### Install a Bundle
 
-Install multiple resources at once with bundles:
+Install multiple resources at once:
 
 ```bash
 agr add kasperjunge/anthropic
 ```
 
-This installs all skills, commands, and agents from the bundle in one command.
+---
+
+## Dependency Tracking
+
+**New in v0.4.0:** Track your project's resources with `agr.toml`.
+
+### The agr.toml File
+
+When you add resources, agr automatically tracks them in `agr.toml`:
+
+```toml
+[dependencies]
+"kasperjunge/hello-world" = {}
+"madsnorgaard/drupal-expert" = { type = "skill" }
+"acme/tools/review" = { type = "command" }
+```
+
+This file is lightweight, human-readable, and perfect for version control.
+
+### Sync Your Resources
+
+Set up a new machine or share your project? One command installs everything:
+
+```bash
+agr sync
+```
+
+This reads `agr.toml` and installs any missing resources.
+
+### Keep Things Tidy
+
+Remove resources that aren't in your `agr.toml`:
+
+```bash
+agr sync --prune
+```
+
+### Workflow
+
+```bash
+# Add resources (automatically tracked in agr.toml)
+agr add kasperjunge/hello-world
+agr add madsnorgaard/drupal-expert
+
+# Commit agr.toml to version control
+git add agr.toml && git commit -m "Add agent dependencies"
+
+# On another machine, sync everything
+agr sync
+```
 
 ---
 
@@ -166,33 +207,13 @@ The following syntax is deprecated but still supported for backwards compatibili
 ```bash
 # Old subcommand syntax (deprecated)
 agr add skill <username>/<name>
-agr add command <username>/<name>
-agr add agent <username>/<name>
-agr add bundle <username>/<name>
-
 agr remove skill <name>
-agr remove command <name>
-agr remove agent <name>
-
 agrx skill <username>/<name>
-agrx command <username>/<name>
-```
 
-Use the unified syntax instead:
-
-```bash
+# Use instead
 agr add <username>/<name>
 agr remove <name>
 agrx <username>/<name>
-```
-
-Even older standalone commands are also deprecated:
-
-```bash
-uvx add-skill <username>/<skill-name>
-uvx add-command <username>/<command-name>
-uvx add-agent <username>/<agent-name>
-uvx create-agent-resources-repo
 ```
 
 ---

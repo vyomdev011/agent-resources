@@ -27,8 +27,51 @@ If you use nested paths, verify the folder structure matches the `:` segments.
 If the destination exists, rerun with `--overwrite`:
 
 ```bash
-agr add skill username/my-skill --overwrite
+agr add username/my-skill --overwrite
 ```
+
+## Ambiguous resource type
+
+If you see an error about multiple resource types:
+
+```
+Error: Resource 'hello' found in multiple types: skill, command.
+```
+
+Use `--type` to specify which one you want:
+
+```bash
+agr add username/hello --type skill
+```
+
+## agr.toml not found
+
+`agr sync` requires an `agr.toml` file. If you don't have one:
+
+- Run `agr add` to create one automatically
+- Or create `agr.toml` manually:
+
+```toml
+[dependencies]
+"username/my-resource" = {}
+```
+
+## Sync not installing resources
+
+If `agr sync` skips resources that should be installed:
+
+- Check that the resources are listed in `agr.toml`
+- Verify the reference format is correct (`username/name` or `username/repo/name`)
+- Resources already installed are skipped (this is expected behavior)
+
+## Prune not removing resources
+
+`agr sync --prune` only removes resources in namespaced paths:
+
+- Resources at `.claude/skills/username/resource/` will be pruned
+- Resources at `.claude/skills/resource/` (flat paths from older versions) are preserved
+
+This preserves backward compatibility with older installations.
 
 ## Network errors
 

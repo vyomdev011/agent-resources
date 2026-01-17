@@ -1,12 +1,14 @@
 """Integration tests for unified add command."""
 
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import pytest
 from typer.testing import CliRunner
-from unittest.mock import patch, MagicMock
-from pathlib import Path
 
 from agr.cli.main import app
-from agr.fetcher import ResourceType, DiscoveredResource, DiscoveryResult
+from agr.config import AgrConfig
+from agr.fetcher import DiscoveredResource, DiscoveryResult, ResourceType
 
 
 runner = CliRunner()
@@ -218,3 +220,179 @@ class TestDeprecatedAddCommands:
         mock_handler.assert_called_once()
         call_args = mock_handler.call_args
         assert call_args[0][3] is True  # overwrite=True
+
+
+class TestAddNamespacedAndToml:
+    """Tests for namespaced paths and agr.toml integration."""
+
+    @patch("agr.cli.common.downloaded_repo")
+    @patch("agr.cli.common.discover_resource_type_from_dir")
+    @patch("agr.cli.common.fetch_resource_from_repo_dir")
+    def test_add_installs_to_namespaced_path(
+        self, mock_fetch, mock_discover, mock_download, tmp_path, monkeypatch
+    ):
+        """Test that 'agr add user/name' installs to namespaced path."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()  # Mark as git root
+
+        mock_download.return_value.__enter__ = MagicMock(return_value=tmp_path)
+        mock_download.return_value.__exit__ = MagicMock(return_value=None)
+
+        mock_discover.return_value = DiscoveryResult(
+            resources=[
+                DiscoveredResource(
+                    name="commit",
+                    resource_type=ResourceType.SKILL,
+                    path_segments=["commit"]
+                )
+            ]
+        )
+
+        result = runner.invoke(app, ["add", "kasperjunge/commit"])
+
+        # Verify fetch was called with username for namespaced path
+        mock_fetch.assert_called_once()
+        call_kwargs = mock_fetch.call_args[1] if mock_fetch.call_args[1] else {}
+        call_args = mock_fetch.call_args[0]
+        # Check username was passed (should be in kwargs or as positional arg)
+        assert "username" in call_kwargs or len(call_args) > 5
+
+    @patch("agr.cli.common.downloaded_repo")
+    @patch("agr.cli.common.discover_resource_type_from_dir")
+    @patch("agr.cli.common.fetch_resource_from_repo_dir")
+    def test_add_creates_agr_toml_if_missing(
+        self, mock_fetch, mock_discover, mock_download, tmp_path, monkeypatch
+    ):
+        """Test that 'agr add' creates agr.toml if it doesn't exist."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        mock_download.return_value.__enter__ = MagicMock(return_value=tmp_path)
+        mock_download.return_value.__exit__ = MagicMock(return_value=None)
+
+        mock_discover.return_value = DiscoveryResult(
+            resources=[
+                DiscoveredResource(
+                    name="commit",
+                    resource_type=ResourceType.SKILL,
+                    path_segments=["commit"]
+                )
+            ]
+        )
+
+        # Verify no agr.toml exists
+        assert not (tmp_path / "agr.toml").exists()
+
+        result = runner.invoke(app, ["add", "kasperjunge/commit"])
+
+        # Verify agr.toml was created
+        assert (tmp_path / "agr.toml").exists()
+
+    @patch("agr.cli.common.downloaded_repo")
+    @patch("agr.cli.common.discover_resource_type_from_dir")
+    @patch("agr.cli.common.fetch_resource_from_repo_dir")
+    def test_add_adds_entry_to_existing_agr_toml(
+        self, mock_fetch, mock_discover, mock_download, tmp_path, monkeypatch
+    ):
+        """Test that 'agr add' adds entry to existing agr.toml."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        # Create existing agr.toml
+        existing_toml = tmp_path / "agr.toml"
+        existing_toml.write_text('''[dependencies]
+"alice/review" = {}
+''')
+
+        mock_download.return_value.__enter__ = MagicMock(return_value=tmp_path)
+        mock_download.return_value.__exit__ = MagicMock(return_value=None)
+
+        mock_discover.return_value = DiscoveryResult(
+            resources=[
+                DiscoveredResource(
+                    name="commit",
+                    resource_type=ResourceType.SKILL,
+                    path_segments=["commit"]
+                )
+            ]
+        )
+
+        result = runner.invoke(app, ["add", "kasperjunge/commit"])
+
+        # Verify agr.toml has both entries
+        config = AgrConfig.load(existing_toml)
+        assert "alice/review" in config.dependencies
+        assert "kasperjunge/commit" in config.dependencies
+
+    @patch("agr.cli.common.downloaded_repo")
+    @patch("agr.cli.common.discover_resource_type_from_dir")
+    @patch("agr.cli.common.fetch_resource_from_repo_dir")
+    def test_agr_toml_contains_correct_dependency(
+        self, mock_fetch, mock_discover, mock_download, tmp_path, monkeypatch
+    ):
+        """Test that agr.toml contains the correct dependency reference after add."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        mock_download.return_value.__enter__ = MagicMock(return_value=tmp_path)
+        mock_download.return_value.__exit__ = MagicMock(return_value=None)
+
+        mock_discover.return_value = DiscoveryResult(
+            resources=[
+                DiscoveredResource(
+                    name="commit",
+                    resource_type=ResourceType.SKILL,
+                    path_segments=["commit"]
+                )
+            ]
+        )
+
+        result = runner.invoke(app, ["add", "kasperjunge/commit"])
+
+        # Verify dependency format is correct
+        config = AgrConfig.load(tmp_path / "agr.toml")
+        assert "kasperjunge/commit" in config.dependencies
+        # Verify format: username/name, not username/repo/name for default repo
+
+    @patch("agr.cli.common.downloaded_repo")
+    @patch("agr.cli.common.discover_resource_type_from_dir")
+    @patch("agr.cli.common.fetch_resource_from_repo_dir")
+    def test_add_with_custom_repo_stores_full_ref(
+        self, mock_fetch, mock_discover, mock_download, tmp_path, monkeypatch
+    ):
+        """Test that custom repo reference is stored correctly."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        mock_download.return_value.__enter__ = MagicMock(return_value=tmp_path)
+        mock_download.return_value.__exit__ = MagicMock(return_value=None)
+
+        mock_discover.return_value = DiscoveryResult(
+            resources=[
+                DiscoveredResource(
+                    name="commit",
+                    resource_type=ResourceType.SKILL,
+                    path_segments=["commit"]
+                )
+            ]
+        )
+
+        result = runner.invoke(app, ["add", "kasperjunge/custom-repo/commit"])
+
+        # Verify full ref is stored when using custom repo
+        config = AgrConfig.load(tmp_path / "agr.toml")
+        assert "kasperjunge/custom-repo/commit" in config.dependencies
+
+    @patch("agr.cli.common.fetch_resource")
+    def test_explicit_type_installs_to_namespaced_path(self, mock_fetch, tmp_path, monkeypatch):
+        """Test that explicit --type still installs to namespaced path."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        result = runner.invoke(app, ["add", "--type", "skill", "testuser/my-skill"])
+
+        # Verify fetch_resource was called with username for namespaced path
+        mock_fetch.assert_called_once()
+        call_kwargs = mock_fetch.call_args[1] if mock_fetch.call_args[1] else {}
+        # Check if username was passed
+        assert "username" in call_kwargs or len(mock_fetch.call_args[0]) > 6

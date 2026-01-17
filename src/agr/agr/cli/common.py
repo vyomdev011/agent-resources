@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.spinner import Spinner
 
+from agr.config import AgrConfig, DependencySpec, get_or_create_config
 from agr.exceptions import (
     AgrError,
     BundleNotFoundError,
@@ -141,6 +142,31 @@ def get_destination(resource_subdir: str, global_install: bool) -> Path:
     return get_base_path(global_install) / resource_subdir
 
 
+def get_namespaced_destination(
+    username: str,
+    resource_name: str,
+    resource_subdir: str,
+    global_install: bool,
+) -> Path:
+    """
+    Get the namespaced destination path for a resource.
+
+    Namespaced paths include the username:
+    .claude/{subdir}/{username}/{name}/
+
+    Args:
+        username: GitHub username (e.g., "kasperjunge")
+        resource_name: Name of the resource (e.g., "commit")
+        resource_subdir: The subdirectory name (e.g., "skills", "commands", "agents")
+        global_install: If True, use ~/.claude/, else ./.claude/
+
+    Returns:
+        Path to the namespaced destination (e.g., .claude/skills/kasperjunge/commit/)
+    """
+    base = get_base_path(global_install)
+    return base / resource_subdir / username / resource_name
+
+
 @contextmanager
 def fetch_spinner():
     """Show spinner during fetch operation."""
@@ -172,6 +198,7 @@ def handle_add_resource(
     resource_subdir: str,
     overwrite: bool = False,
     global_install: bool = False,
+    username: str | None = None,
 ) -> None:
     """
     Generic handler for adding any resource type.
@@ -182,21 +209,26 @@ def handle_add_resource(
         resource_subdir: Destination subdirectory (e.g., "skills", "commands", "agents")
         overwrite: Whether to overwrite existing resource
         global_install: If True, install to ~/.claude/, else to ./.claude/
+        username: GitHub username for namespaced installation
     """
     try:
-        username, repo_name, name, path_segments = parse_resource_ref(resource_ref)
+        parsed_username, repo_name, name, path_segments = parse_resource_ref(resource_ref)
     except typer.BadParameter as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
+
+    # Use parsed username if not provided
+    install_username = username or parsed_username
 
     dest = get_destination(resource_subdir, global_install)
 
     try:
         with fetch_spinner():
             fetch_resource(
-                username, repo_name, name, path_segments, dest, resource_type, overwrite
+                parsed_username, repo_name, name, path_segments, dest, resource_type, overwrite,
+                username=install_username,
             )
-        print_success_message(resource_type.value, name, username, repo_name)
+        print_success_message(resource_type.value, name, parsed_username, repo_name)
     except (RepoNotFoundError, ResourceNotFoundError, ResourceExistsError, AgrError) as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
@@ -273,28 +305,142 @@ def handle_update_resource(
         raise typer.Exit(1)
 
 
+def _get_namespaced_resource_path(
+    name: str,
+    username: str,
+    resource_subdir: str,
+    global_install: bool,
+) -> Path:
+    """Build the namespaced local path for a resource."""
+    dest = get_destination(resource_subdir, global_install)
+    if resource_subdir == "skills":
+        return dest / username / name
+    else:
+        return dest / username / f"{name}.md"
+
+
+def _remove_from_agr_toml(
+    name: str,
+    username: str | None = None,
+    global_install: bool = False,
+) -> None:
+    """
+    Remove a dependency from agr.toml after removing resource.
+
+    Args:
+        name: Resource name
+        username: GitHub username (for building ref)
+        global_install: If True, don't update agr.toml
+    """
+    if global_install:
+        return
+
+    try:
+        from agr.config import find_config, AgrConfig
+
+        config_path = find_config()
+        if not config_path:
+            return
+
+        config = AgrConfig.load(config_path)
+
+        # Try to find and remove matching dependency
+        # Could be "username/name" or "username/repo/name"
+        refs_to_check = []
+        if username:
+            refs_to_check.append(f"{username}/{name}")
+        # Also check all refs ending with /name
+        for ref in list(config.dependencies.keys()):
+            if ref.endswith(f"/{name}"):
+                refs_to_check.append(ref)
+
+        removed = False
+        for ref in refs_to_check:
+            if ref in config.dependencies:
+                config.remove_dependency(ref)
+                removed = True
+                break
+
+        if removed:
+            config.save(config_path)
+            console.print(f"[dim]Removed from agr.toml[/dim]")
+    except Exception:
+        # Don't fail the remove if agr.toml update fails
+        pass
+
+
+def _find_namespaced_resource(
+    name: str,
+    resource_subdir: str,
+    global_install: bool,
+) -> tuple[Path | None, str | None]:
+    """
+    Search all namespaced directories for a resource.
+
+    Returns:
+        Tuple of (path, username) if found, (None, None) otherwise
+    """
+    dest = get_destination(resource_subdir, global_install)
+    if not dest.exists():
+        return None, None
+
+    for username_dir in dest.iterdir():
+        if username_dir.is_dir():
+            if resource_subdir == "skills":
+                resource_path = username_dir / name
+                if resource_path.is_dir() and (resource_path / "SKILL.md").exists():
+                    return resource_path, username_dir.name
+            else:
+                resource_path = username_dir / f"{name}.md"
+                if resource_path.is_file():
+                    return resource_path, username_dir.name
+
+    return None, None
+
+
 def handle_remove_resource(
     name: str,
     resource_type: ResourceType,
     resource_subdir: str,
     global_install: bool = False,
+    username: str | None = None,
 ) -> None:
     """
     Generic handler for removing any resource type.
 
     Removes the resource immediately without confirmation.
+    Searches namespaced paths first, then falls back to flat paths.
 
     Args:
         name: Name of the resource to remove
         resource_type: Type of resource (SKILL, COMMAND, or AGENT)
         resource_subdir: Destination subdirectory (e.g., "skills", "commands", "agents")
         global_install: If True, remove from ~/.claude/, else from ./.claude/
+        username: GitHub username for namespaced path lookup
     """
-    local_path = get_local_resource_path(name, resource_subdir, global_install)
+    local_path = None
+    found_username = username
 
-    if not local_path.exists():
+    # Try namespaced path first if username provided
+    if username:
+        namespaced_path = _get_namespaced_resource_path(name, username, resource_subdir, global_install)
+        if namespaced_path.exists():
+            local_path = namespaced_path
+
+    # If not found and no username, search all namespaced directories
+    if local_path is None and username is None:
+        local_path, found_username = _find_namespaced_resource(name, resource_subdir, global_install)
+
+    # If still not found, try flat path
+    if local_path is None:
+        flat_path = get_local_resource_path(name, resource_subdir, global_install)
+        if flat_path.exists():
+            local_path = flat_path
+            found_username = None  # Flat path, no username
+
+    if local_path is None:
         typer.echo(
-            f"Error: {resource_type.value.capitalize()} '{name}' not found at {local_path}",
+            f"Error: {resource_type.value.capitalize()} '{name}' not found locally",
             err=True,
         )
         raise typer.Exit(1)
@@ -304,7 +450,18 @@ def handle_remove_resource(
             shutil.rmtree(local_path)
         else:
             local_path.unlink()
+
+        # Clean up empty username directory if this was a namespaced resource
+        if found_username:
+            username_dir = local_path.parent
+            if username_dir.exists() and not any(username_dir.iterdir()):
+                username_dir.rmdir()
+
         console.print(f"[green]Removed {resource_type.value} '{name}'[/green]")
+
+        # Update agr.toml
+        _remove_from_agr_toml(name, found_username, global_install)
+
     except OSError as e:
         typer.echo(f"Error: Failed to remove resource: {e}", err=True)
         raise typer.Exit(1)
@@ -475,8 +632,15 @@ def discover_local_resource_type(name: str, global_install: bool) -> DiscoveryRe
     """
     Discover which resource types exist locally for a given name.
 
+    Searches both namespaced paths (.claude/skills/username/name/) and
+    flat paths (.claude/skills/name/) for backward compatibility.
+
+    The name can be:
+    - Simple name: "commit" - searches all usernames and flat path
+    - Full ref: "kasperjunge/commit" - searches specific username only
+
     Args:
-        name: Resource name to search for
+        name: Resource name or full ref (username/name) to search for
         global_install: If True, search in ~/.claude/, else in ./.claude/
 
     Returns:
@@ -485,6 +649,132 @@ def discover_local_resource_type(name: str, global_install: bool) -> DiscoveryRe
     result = DiscoveryResult()
     base_path = get_base_path(global_install)
 
+    # Check if name is a full ref (username/name)
+    if "/" in name:
+        parts = name.split("/")
+        if len(parts) == 2:
+            username, resource_name = parts
+            # Search only in specific namespace
+            _discover_in_namespace(
+                base_path, resource_name, username, result
+            )
+            return result
+
+    # Simple name - search both namespaced and flat paths
+    # First check namespaced paths (.claude/skills/*/name/)
+    _discover_in_all_namespaces(base_path, name, result)
+
+    # Then check flat paths (.claude/skills/name/) for backward compat
+    _discover_in_flat_path(base_path, name, result)
+
+    return result
+
+
+def _discover_in_namespace(
+    base_path: Path,
+    name: str,
+    username: str,
+    result: DiscoveryResult,
+) -> None:
+    """Discover resources in a specific username namespace."""
+    # Check for skill
+    skill_path = base_path / "skills" / username / name
+    if skill_path.is_dir() and (skill_path / "SKILL.md").exists():
+        result.resources.append(
+            DiscoveredResource(
+                name=name,
+                resource_type=ResourceType.SKILL,
+                path_segments=[name],
+                username=username,
+            )
+        )
+
+    # Check for command
+    command_path = base_path / "commands" / username / f"{name}.md"
+    if command_path.is_file():
+        result.resources.append(
+            DiscoveredResource(
+                name=name,
+                resource_type=ResourceType.COMMAND,
+                path_segments=[name],
+                username=username,
+            )
+        )
+
+    # Check for agent
+    agent_path = base_path / "agents" / username / f"{name}.md"
+    if agent_path.is_file():
+        result.resources.append(
+            DiscoveredResource(
+                name=name,
+                resource_type=ResourceType.AGENT,
+                path_segments=[name],
+                username=username,
+            )
+        )
+
+
+def _discover_in_all_namespaces(
+    base_path: Path,
+    name: str,
+    result: DiscoveryResult,
+) -> None:
+    """Discover resources across all username namespaces."""
+    # Check skills namespaces
+    skills_dir = base_path / "skills"
+    if skills_dir.is_dir():
+        for username_dir in skills_dir.iterdir():
+            if username_dir.is_dir():
+                skill_path = username_dir / name
+                if skill_path.is_dir() and (skill_path / "SKILL.md").exists():
+                    result.resources.append(
+                        DiscoveredResource(
+                            name=name,
+                            resource_type=ResourceType.SKILL,
+                            path_segments=[name],
+                            username=username_dir.name,
+                        )
+                    )
+
+    # Check commands namespaces
+    commands_dir = base_path / "commands"
+    if commands_dir.is_dir():
+        for username_dir in commands_dir.iterdir():
+            if username_dir.is_dir():
+                command_path = username_dir / f"{name}.md"
+                if command_path.is_file():
+                    result.resources.append(
+                        DiscoveredResource(
+                            name=name,
+                            resource_type=ResourceType.COMMAND,
+                            path_segments=[name],
+                            username=username_dir.name,
+                        )
+                    )
+
+    # Check agents namespaces
+    agents_dir = base_path / "agents"
+    if agents_dir.is_dir():
+        for username_dir in agents_dir.iterdir():
+            if username_dir.is_dir():
+                agent_path = username_dir / f"{name}.md"
+                if agent_path.is_file():
+                    result.resources.append(
+                        DiscoveredResource(
+                            name=name,
+                            resource_type=ResourceType.AGENT,
+                            path_segments=[name],
+                            username=username_dir.name,
+                        )
+                    )
+
+
+def _discover_in_flat_path(
+    base_path: Path,
+    name: str,
+    result: DiscoveryResult,
+) -> None:
+    """Discover resources in flat (non-namespaced) paths for backward compat."""
     # Check for skill (directory with SKILL.md)
     skill_path = base_path / "skills" / name
     if skill_path.is_dir() and (skill_path / "SKILL.md").exists():
@@ -493,6 +783,7 @@ def discover_local_resource_type(name: str, global_install: bool) -> DiscoveryRe
                 name=name,
                 resource_type=ResourceType.SKILL,
                 path_segments=[name],
+                username=None,
             )
         )
 
@@ -504,6 +795,7 @@ def discover_local_resource_type(name: str, global_install: bool) -> DiscoveryRe
                 name=name,
                 resource_type=ResourceType.COMMAND,
                 path_segments=[name],
+                username=None,
             )
         )
 
@@ -515,10 +807,45 @@ def discover_local_resource_type(name: str, global_install: bool) -> DiscoveryRe
                 name=name,
                 resource_type=ResourceType.AGENT,
                 path_segments=[name],
+                username=None,
             )
         )
 
-    return result
+
+
+def _build_dependency_ref(username: str, repo_name: str, name: str) -> str:
+    """Build the dependency reference for agr.toml."""
+    if repo_name == DEFAULT_REPO_NAME:
+        return f"{username}/{name}"
+    return f"{username}/{repo_name}/{name}"
+
+
+def _add_to_agr_toml(
+    resource_ref: str,
+    resource_type: ResourceType | None = None,
+    global_install: bool = False,
+) -> None:
+    """
+    Add a dependency to agr.toml after successful install.
+
+    Args:
+        resource_ref: The dependency reference (e.g., "kasperjunge/commit")
+        resource_type: Optional type hint for the dependency
+        global_install: If True, don't update agr.toml (global resources aren't tracked)
+    """
+    # Don't track global installs in agr.toml
+    if global_install:
+        return
+
+    try:
+        config_path, config = get_or_create_config()
+        spec = DependencySpec(type=resource_type.value if resource_type else None)
+        config.add_dependency(resource_ref, spec)
+        config.save(config_path)
+        console.print(f"[dim]Added to agr.toml[/dim]")
+    except Exception:
+        # Don't fail the install if agr.toml update fails
+        pass
 
 
 def handle_add_unified(
@@ -529,6 +856,9 @@ def handle_add_unified(
 ) -> None:
     """
     Unified handler for adding any resource with auto-detection.
+
+    Installs resources to namespaced paths (.claude/skills/username/name/)
+    and tracks them in agr.toml.
 
     Args:
         resource_ref: Resource reference (e.g., "username/resource-name")
@@ -542,24 +872,30 @@ def handle_add_unified(
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
 
+    # Build dependency ref for agr.toml
+    dep_ref = _build_dependency_ref(username, repo_name, name)
+
     # If explicit type provided, delegate to specific handler
     if resource_type:
         type_lower = resource_type.lower()
-        if type_lower == "skill":
-            handle_add_resource(resource_ref, ResourceType.SKILL, "skills", overwrite, global_install)
-            return
-        elif type_lower == "command":
-            handle_add_resource(resource_ref, ResourceType.COMMAND, "commands", overwrite, global_install)
-            return
-        elif type_lower == "agent":
-            handle_add_resource(resource_ref, ResourceType.AGENT, "agents", overwrite, global_install)
-            return
-        elif type_lower == "bundle":
+        type_map = {
+            "skill": (ResourceType.SKILL, "skills"),
+            "command": (ResourceType.COMMAND, "commands"),
+            "agent": (ResourceType.AGENT, "agents"),
+        }
+
+        if type_lower == "bundle":
             handle_add_bundle(resource_ref, overwrite, global_install)
             return
-        else:
+
+        if type_lower not in type_map:
             typer.echo(f"Error: Unknown resource type '{resource_type}'. Use: skill, command, agent, or bundle.", err=True)
             raise typer.Exit(1)
+
+        res_type, subdir = type_map[type_lower]
+        handle_add_resource(resource_ref, res_type, subdir, overwrite, global_install, username=username)
+        _add_to_agr_toml(dep_ref, res_type, global_install)
+        return
 
     # Auto-detect type by downloading repo once
     try:
@@ -593,14 +929,19 @@ def handle_add_unified(
                     bundle_name = path_segments[-1] if path_segments else name
                     result = fetch_bundle_from_repo_dir(repo_dir, bundle_name, dest_base, overwrite)
                     print_bundle_success_message(bundle_name, result, username, repo_name)
+                    # Bundles are deprecated, don't add to agr.toml
                 else:
                     resource = discovery.resources[0]
-                    config = RESOURCE_CONFIGS[resource.resource_type]
-                    dest = dest_base / config.dest_subdir
+                    res_config = RESOURCE_CONFIGS[resource.resource_type]
+                    dest = dest_base / res_config.dest_subdir
+                    # Use namespaced path with username
                     fetch_resource_from_repo_dir(
-                        repo_dir, name, path_segments, dest, resource.resource_type, overwrite
+                        repo_dir, name, path_segments, dest, resource.resource_type, overwrite,
+                        username=username,
                     )
                     print_success_message(resource.resource_type.value, name, username, repo_name)
+                    # Add to agr.toml
+                    _add_to_agr_toml(dep_ref, resource.resource_type, global_install)
 
     except (RepoNotFoundError, ResourceExistsError, BundleNotFoundError, MultipleResourcesFoundError) as e:
         typer.echo(f"Error: {e}", err=True)
@@ -618,29 +959,42 @@ def handle_remove_unified(
     """
     Unified handler for removing any resource with auto-detection.
 
+    Supports both simple names ("commit") and full refs ("kasperjunge/commit").
+    Searches namespaced paths first, then falls back to flat paths.
+
     Args:
-        name: Resource name to remove
+        name: Resource name or full ref (username/name) to remove
         resource_type: Optional explicit type ("skill", "command", "agent", "bundle")
         global_install: If True, remove from ~/.claude/, else from ./.claude/
     """
+    # Parse if name is a full ref
+    parsed_username = None
+    resource_name = name
+    if "/" in name:
+        parts = name.split("/")
+        if len(parts) == 2:
+            parsed_username, resource_name = parts
+
     # If explicit type provided, delegate to specific handler
     if resource_type:
         type_lower = resource_type.lower()
-        if type_lower == "skill":
-            handle_remove_resource(name, ResourceType.SKILL, "skills", global_install)
+        type_map = {
+            "skill": (ResourceType.SKILL, "skills"),
+            "command": (ResourceType.COMMAND, "commands"),
+            "agent": (ResourceType.AGENT, "agents"),
+        }
+
+        if type_lower == "bundle":
+            handle_remove_bundle(resource_name, global_install)
             return
-        elif type_lower == "command":
-            handle_remove_resource(name, ResourceType.COMMAND, "commands", global_install)
-            return
-        elif type_lower == "agent":
-            handle_remove_resource(name, ResourceType.AGENT, "agents", global_install)
-            return
-        elif type_lower == "bundle":
-            handle_remove_bundle(name, global_install)
-            return
-        else:
+
+        if type_lower not in type_map:
             typer.echo(f"Error: Unknown resource type '{resource_type}'. Use: skill, command, agent, or bundle.", err=True)
             raise typer.Exit(1)
+
+        res_type, subdir = type_map[type_lower]
+        handle_remove_resource(resource_name, res_type, subdir, global_install, username=parsed_username)
+        return
 
     # Auto-detect type from local files
     discovery = discover_local_resource_type(name, global_install)
@@ -667,7 +1021,15 @@ def handle_remove_unified(
 
     # Remove the unique resource
     resource = discovery.resources[0]
-    handle_remove_resource(name, resource.resource_type, RESOURCE_CONFIGS[resource.resource_type].dest_subdir, global_install)
+    # Pass username from discovery (could be from namespaced path or parsed ref)
+    username = resource.username or parsed_username
+    handle_remove_resource(
+        resource_name,
+        resource.resource_type,
+        RESOURCE_CONFIGS[resource.resource_type].dest_subdir,
+        global_install,
+        username=username,
+    )
 
 
 def discover_runnable_resource(

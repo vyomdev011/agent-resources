@@ -1,12 +1,14 @@
 """Integration tests for unified remove command."""
 
+from pathlib import Path
+from unittest.mock import patch
+
 import pytest
 from typer.testing import CliRunner
-from unittest.mock import patch, MagicMock
-from pathlib import Path
 
 from agr.cli.main import app
-from agr.fetcher import ResourceType, DiscoveredResource, DiscoveryResult
+from agr.config import AgrConfig, DependencySpec
+from agr.fetcher import DiscoveredResource, DiscoveryResult, ResourceType
 
 
 runner = CliRunner()
@@ -166,3 +168,99 @@ class TestDeprecatedRemoveCommands:
         mock_handler.assert_called_once()
         call_args = mock_handler.call_args
         assert call_args[0][3] is True  # global_install=True
+
+
+class TestRemoveNamespacedAndToml:
+    """Tests for namespaced paths and agr.toml integration in remove."""
+
+    def test_remove_from_namespaced_path(self, tmp_path: Path, monkeypatch):
+        """Test that remove works with namespaced paths."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        # Create namespaced skill
+        skill_dir = tmp_path / ".claude" / "skills" / "kasperjunge" / "commit"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Commit Skill")
+
+        result = runner.invoke(app, ["remove", "commit"])
+
+        assert result.exit_code == 0
+        assert not skill_dir.exists()
+
+    def test_remove_updates_agr_toml(self, tmp_path: Path, monkeypatch):
+        """Test that remove updates agr.toml."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        # Create agr.toml with dependency
+        config = AgrConfig()
+        config.add_dependency("kasperjunge/commit", DependencySpec(type="skill"))
+        config.add_dependency("alice/review", DependencySpec(type="command"))
+        config.save(tmp_path / "agr.toml")
+
+        # Create namespaced skill
+        skill_dir = tmp_path / ".claude" / "skills" / "kasperjunge" / "commit"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Commit Skill")
+
+        result = runner.invoke(app, ["remove", "commit"])
+
+        # Verify agr.toml was updated
+        updated_config = AgrConfig.load(tmp_path / "agr.toml")
+        assert "kasperjunge/commit" not in updated_config.dependencies
+        assert "alice/review" in updated_config.dependencies
+
+    def test_remove_with_full_ref(self, tmp_path: Path, monkeypatch):
+        """Test that remove works with full ref (username/name)."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        # Create namespaced skill
+        skill_dir = tmp_path / ".claude" / "skills" / "kasperjunge" / "commit"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Commit Skill")
+
+        result = runner.invoke(app, ["remove", "kasperjunge/commit"])
+
+        assert result.exit_code == 0
+        assert not skill_dir.exists()
+
+    def test_remove_falls_back_to_flat_path(self, tmp_path: Path, monkeypatch):
+        """Test that remove works with flat (legacy) paths."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        # Create flat skill (legacy)
+        skill_dir = tmp_path / ".claude" / "skills" / "commit"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Commit Skill")
+
+        result = runner.invoke(app, ["remove", "commit"])
+
+        assert result.exit_code == 0
+        assert not skill_dir.exists()
+
+    def test_remove_with_explicit_type(self, tmp_path: Path, monkeypatch):
+        """Test that remove with --type works with namespaced paths."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        # Create namespaced command
+        cmd_dir = tmp_path / ".claude" / "commands" / "alice"
+        cmd_dir.mkdir(parents=True)
+        (cmd_dir / "review.md").write_text("# Review Command")
+
+        # Also create agr.toml
+        config = AgrConfig()
+        config.add_dependency("alice/review", DependencySpec(type="command"))
+        config.save(tmp_path / "agr.toml")
+
+        result = runner.invoke(app, ["remove", "--type", "command", "review"])
+
+        assert result.exit_code == 0
+        assert not (cmd_dir / "review.md").exists()
+
+        # Verify agr.toml was updated
+        updated_config = AgrConfig.load(tmp_path / "agr.toml")
+        assert "alice/review" not in updated_config.dependencies
