@@ -23,7 +23,7 @@ No installation needed. Just run:
 uvx agr add kasperjunge/hello-world
 ```
 
-**That's it.** The skill is now available in Claude Code. The resource type (skill, command, agent, or bundle) is auto-detected.
+**That's it.** The skill is now available in Claude Code. The resource type (skill, command, agent) is auto-detected.
 
 Or install permanently:
 
@@ -52,14 +52,6 @@ Resources install to organized namespaced paths:
 ```
 
 This prevents naming conflicts and keeps your resources organized.
-
-### Install a Bundle
-
-Install multiple resources at once:
-
-```bash
-agr add kasperjunge/anthropic
-```
 
 ---
 
@@ -90,13 +82,6 @@ agr sync
 
 This reads `agr.toml` and installs any missing resources.
 
-### Keep Things Tidy
-
-Remove resources that aren't in your `agr.toml`:
-
-```bash
-agr sync --prune
-```
 
 ### Workflow
 

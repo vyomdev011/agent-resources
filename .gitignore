@@ -61,3 +61,4 @@ docs/.cache/
 
 # Release messages output
 .releases/
+.claude/
