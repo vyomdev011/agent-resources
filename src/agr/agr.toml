@@ -1,2 +1,13 @@
 [dependencies]
-"madsnorgaard/drupal-expert" = { type = "skill" }
+
+[dependencies."madsnorgaard/drupal-expert"]
+type = "skill"
+
+[dependencies."testuser/hello-world"]
+type = "skill"
+
+[dependencies."testuser/hello"]
+type = "command"
+
+[dependencies."testuser/hello-agent"]
+type = "agent"

@@ -52,12 +52,6 @@ class DiscoveryContext:
     """Result of local resource discovery.
 
     Contains all discovered resources organized by type.
-
-    Attributes:
-        skills: List of discovered skill resources
-        commands: List of discovered command resources
-        agents: List of discovered agent resources
-        packages: List of discovered packages with their resources
     """
 
     skills: list[LocalResource] = field(default_factory=list)
@@ -68,197 +62,103 @@ class DiscoveryContext:
     @property
     def all_resources(self) -> list[LocalResource]:
         """Return all resources including those in packages."""
-        all_res = list(self.skills) + list(self.commands) + list(self.agents)
+        resources = self.skills + self.commands + self.agents
         for pkg in self.packages:
-            all_res.extend(pkg.resources)
-        return all_res
+            resources.extend(pkg.resources)
+        return resources
 
     @property
     def is_empty(self) -> bool:
         """Return True if no resources were discovered."""
-        return (
-            len(self.skills) == 0
-            and len(self.commands) == 0
-            and len(self.agents) == 0
-            and len(self.packages) == 0
-        )
+        return not (self.skills or self.commands or self.agents or self.packages)
 
 
-def _discover_skills(root_path: Path) -> list[LocalResource]:
-    """Discover skills in skills/ directory.
+def _discover_skills_in_dir(
+    root_path: Path,
+    skills_dir: Path,
+    package_name: str | None = None,
+) -> list[LocalResource]:
+    """Discover skills in a directory containing skill subdirectories.
 
-    Looks for directories containing SKILL.md files.
-
-    Args:
-        root_path: Path to repository root
-
-    Returns:
-        List of discovered skill resources
+    Skills are directories containing a SKILL.md file.
     """
-    skills = []
-    skills_dir = root_path / "skills"
-
     if not skills_dir.is_dir():
-        return skills
+        return []
 
+    resources = []
     for skill_dir in skills_dir.iterdir():
         if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
-            skills.append(
+            resources.append(
                 LocalResource(
                     name=skill_dir.name,
                     resource_type=ResourceType.SKILL,
                     source_path=skill_dir.relative_to(root_path),
+                    package_name=package_name,
                 )
             )
+    return resources
 
-    return skills
 
+def _discover_md_files_in_dir(
+    root_path: Path,
+    target_dir: Path,
+    resource_type: ResourceType,
+    package_name: str | None = None,
+) -> list[LocalResource]:
+    """Discover markdown file resources in a directory.
 
-def _discover_commands(root_path: Path) -> list[LocalResource]:
-    """Discover commands in commands/ directory.
-
-    Looks for .md files directly in the commands directory.
-
-    Args:
-        root_path: Path to repository root
-
-    Returns:
-        List of discovered command resources
+    Used for commands and agents which are single .md files.
     """
-    commands = []
-    commands_dir = root_path / "commands"
+    if not target_dir.is_dir():
+        return []
 
-    if not commands_dir.is_dir():
-        return commands
-
-    for cmd_file in commands_dir.glob("*.md"):
-        if cmd_file.is_file():
-            commands.append(
-                LocalResource(
-                    name=cmd_file.stem,
-                    resource_type=ResourceType.COMMAND,
-                    source_path=cmd_file.relative_to(root_path),
-                )
-            )
-
-    return commands
-
-
-def _discover_agents(root_path: Path) -> list[LocalResource]:
-    """Discover agents in agents/ directory.
-
-    Looks for .md files directly in the agents directory.
-
-    Args:
-        root_path: Path to repository root
-
-    Returns:
-        List of discovered agent resources
-    """
-    agents = []
-    agents_dir = root_path / "agents"
-
-    if not agents_dir.is_dir():
-        return agents
-
-    for agent_file in agents_dir.glob("*.md"):
-        if agent_file.is_file():
-            agents.append(
-                LocalResource(
-                    name=agent_file.stem,
-                    resource_type=ResourceType.AGENT,
-                    source_path=agent_file.relative_to(root_path),
-                )
-            )
-
-    return agents
+    return [
+        LocalResource(
+            name=md_file.stem,
+            resource_type=resource_type,
+            source_path=md_file.relative_to(root_path),
+            package_name=package_name,
+        )
+        for md_file in target_dir.glob("*.md")
+        if md_file.is_file()
+    ]
 
 
 def _discover_package_resources(
-    root_path: Path, package_path: Path, package_name: str
+    root_path: Path,
+    package_path: Path,
+    package_name: str,
 ) -> list[LocalResource]:
-    """Discover resources within a package.
-
-    Args:
-        root_path: Path to repository root
-        package_path: Path to the package directory
-        package_name: Name of the package
-
-    Returns:
-        List of resources within the package
-    """
+    """Discover all resources within a package directory."""
     resources = []
-
-    # Discover package skills
-    pkg_skills_dir = package_path / "skills"
-    if pkg_skills_dir.is_dir():
-        for skill_dir in pkg_skills_dir.iterdir():
-            if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
-                resources.append(
-                    LocalResource(
-                        name=skill_dir.name,
-                        resource_type=ResourceType.SKILL,
-                        source_path=skill_dir.relative_to(root_path),
-                        package_name=package_name,
-                    )
-                )
-
-    # Discover package commands
-    pkg_commands_dir = package_path / "commands"
-    if pkg_commands_dir.is_dir():
-        for cmd_file in pkg_commands_dir.glob("*.md"):
-            if cmd_file.is_file():
-                resources.append(
-                    LocalResource(
-                        name=cmd_file.stem,
-                        resource_type=ResourceType.COMMAND,
-                        source_path=cmd_file.relative_to(root_path),
-                        package_name=package_name,
-                    )
-                )
-
-    # Discover package agents
-    pkg_agents_dir = package_path / "agents"
-    if pkg_agents_dir.is_dir():
-        for agent_file in pkg_agents_dir.glob("*.md"):
-            if agent_file.is_file():
-                resources.append(
-                    LocalResource(
-                        name=agent_file.stem,
-                        resource_type=ResourceType.AGENT,
-                        source_path=agent_file.relative_to(root_path),
-                        package_name=package_name,
-                    )
-                )
-
+    resources.extend(
+        _discover_skills_in_dir(root_path, package_path / "skills", package_name)
+    )
+    resources.extend(
+        _discover_md_files_in_dir(
+            root_path, package_path / "commands", ResourceType.COMMAND, package_name
+        )
+    )
+    resources.extend(
+        _discover_md_files_in_dir(
+            root_path, package_path / "agents", ResourceType.AGENT, package_name
+        )
+    )
     return resources
 
 
 def _discover_packages(root_path: Path) -> list[LocalPackage]:
-    """Discover packages in packages/ directory.
-
-    Looks for directories containing skills/, commands/, or agents/ subdirectories.
-
-    Args:
-        root_path: Path to repository root
-
-    Returns:
-        List of discovered packages
-    """
-    packages = []
+    """Discover packages in packages/ directory."""
     packages_dir = root_path / "packages"
-
     if not packages_dir.is_dir():
-        return packages
+        return []
 
+    packages = []
     for pkg_dir in packages_dir.iterdir():
         if not pkg_dir.is_dir():
             continue
 
-        # Discover resources within this package
         resources = _discover_package_resources(root_path, pkg_dir, pkg_dir.name)
-
-        # Only add package if it has resources
         if resources:
             packages.append(
                 LocalPackage(
@@ -267,7 +167,6 @@ def _discover_packages(root_path: Path) -> list[LocalPackage]:
                     resources=resources,
                 )
             )
-
     return packages
 
 
@@ -281,16 +180,14 @@ def discover_local_resources(root_path: Path) -> DiscoveryContext:
     - packages/*/skills/*/SKILL.md (packaged skills)
     - packages/*/commands/*.md (packaged commands)
     - packages/*/agents/*.md (packaged agents)
-
-    Args:
-        root_path: Path to repository root
-
-    Returns:
-        DiscoveryContext containing all discovered resources
     """
     return DiscoveryContext(
-        skills=_discover_skills(root_path),
-        commands=_discover_commands(root_path),
-        agents=_discover_agents(root_path),
+        skills=_discover_skills_in_dir(root_path, root_path / "skills"),
+        commands=_discover_md_files_in_dir(
+            root_path, root_path / "commands", ResourceType.COMMAND
+        ),
+        agents=_discover_md_files_in_dir(
+            root_path, root_path / "agents", ResourceType.AGENT
+        ),
         packages=_discover_packages(root_path),
     )

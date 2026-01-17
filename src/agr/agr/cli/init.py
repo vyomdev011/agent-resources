@@ -7,16 +7,7 @@ import typer
 from rich.console import Console
 
 from agr.github import check_gh_cli, create_github_repo, get_github_username, repo_exists
-from agr.scaffold import (
-    create_agent_resources_repo,
-    init_git,
-    scaffold_repo,
-    write_gitignore,
-    write_readme,
-    write_starter_agent,
-    write_starter_command,
-    write_starter_skill,
-)
+from agr.scaffold import create_agent_resources_repo, init_git
 
 console = Console()
 
@@ -25,34 +16,50 @@ app = typer.Typer(
     invoke_without_command=True,
 )
 
+# Convention directory names for local authoring
+AUTHORING_DIRS = ["skills", "commands", "agents", "packages"]
+
 
 def _create_convention_structure(base_path: Path) -> list[Path]:
-    """Create the convention directory structure for local authoring.
+    """Create the convention directory structure for local authoring."""
+    created = []
+    for dirname in AUTHORING_DIRS:
+        dir_path = base_path / dirname
+        if not dir_path.exists():
+            dir_path.mkdir(parents=True, exist_ok=True)
+            created.append(dir_path)
+    return created
 
-    Creates:
-    - skills/
-    - commands/
-    - agents/
-    - packages/
+
+def _get_resource_target_path(
+    name: str,
+    custom_path: Path | None,
+    legacy: bool,
+    resource_type: str,
+    is_directory: bool = False,
+) -> Path:
+    """Get the target path for a resource scaffold.
 
     Args:
-        base_path: Directory to create structure in
+        name: Resource name
+        custom_path: User-specified custom path, if any
+        legacy: If True, use .claude/ path
+        resource_type: The type directory (skills, commands, agents)
+        is_directory: If True, resource is a directory (skills), else a file
 
     Returns:
-        List of created directories
+        Target path for the resource
     """
-    dirs = [
-        base_path / "skills",
-        base_path / "commands",
-        base_path / "agents",
-        base_path / "packages",
-    ]
-    created = []
-    for d in dirs:
-        if not d.exists():
-            d.mkdir(parents=True, exist_ok=True)
-            created.append(d)
-    return created
+    if custom_path:
+        return custom_path
+    if legacy:
+        base = Path.cwd() / ".claude" / resource_type
+    else:
+        base = Path.cwd() / resource_type
+
+    if is_directory:
+        return base / name
+    return base
 
 
 @app.callback()
@@ -227,13 +234,7 @@ def init_skill(
       agr init skill my-skill --legacy     # Creates ./.claude/skills/my-skill/SKILL.md
       agr init skill code-reviewer --path ./custom/path/
     """
-    if path:
-        target_path = path
-    elif legacy:
-        target_path = Path.cwd() / ".claude" / "skills" / name
-    else:
-        target_path = Path.cwd() / "skills" / name
-
+    target_path = _get_resource_target_path(name, path, legacy, "skills", is_directory=True)
     skill_file = target_path / "SKILL.md"
 
     if skill_file.exists():
@@ -302,13 +303,7 @@ def init_command(
       agr init command my-command --legacy  # Creates ./.claude/commands/my-command.md
       agr init command deploy --path ./custom/path/
     """
-    if path:
-        target_path = path
-    elif legacy:
-        target_path = Path.cwd() / ".claude" / "commands"
-    else:
-        target_path = Path.cwd() / "commands"
-
+    target_path = _get_resource_target_path(name, path, legacy, "commands")
     command_file = target_path / f"{name}.md"
 
     if command_file.exists():
@@ -372,13 +367,7 @@ def init_agent(
       agr init agent my-agent --legacy  # Creates ./.claude/agents/my-agent.md
       agr init agent test-writer --path ./custom/path/
     """
-    if path:
-        target_path = path
-    elif legacy:
-        target_path = Path.cwd() / ".claude" / "agents"
-    else:
-        target_path = Path.cwd() / "agents"
-
+    target_path = _get_resource_target_path(name, path, legacy, "agents")
     agent_file = target_path / f"{name}.md"
 
     if agent_file.exists():
