@@ -7,6 +7,7 @@ from pathlib import Path
 
 from agr.cli.run import app
 from agr.fetcher import ResourceType, DiscoveredResource, DiscoveryResult
+from agr.resolver import ResolvedResource, ResourceSource
 
 
 runner = CliRunner()
@@ -234,3 +235,161 @@ class TestInteractiveMode:
         assert "-p" in call_args
         assert "--dangerously-skip-permissions" in call_args
         assert "--continue" in call_args
+
+
+class TestAutoDiscoveryFallback:
+    """Tests for auto-discovery fallback using resolve_remote_resource."""
+
+    @patch("agr.cli.run.shutil.which", return_value="/usr/bin/claude")
+    @patch("agr.cli.run.subprocess.run")
+    @patch("agr.cli.run.downloaded_repo")
+    @patch("agr.cli.run.resolve_remote_resource")
+    @patch("agr.cli.run.fetch_resource_from_repo_dir")
+    @patch("agr.cli.run._build_local_path")
+    @patch("agr.cli.run._cleanup_resource")
+    def test_uses_resolver_before_discover_runnable(
+        self, mock_cleanup, mock_build_path, mock_fetch_from_repo,
+        mock_resolve, mock_download, mock_subprocess, mock_which, tmp_path
+    ):
+        """Test that resolve_remote_resource is called before discover_runnable_resource."""
+        mock_download.return_value.__enter__ = MagicMock(return_value=tmp_path)
+        mock_download.return_value.__exit__ = MagicMock(return_value=None)
+        mock_build_path.return_value = tmp_path / "_agrx_bluesky"
+
+        # Resolver finds the skill at repo root
+        mock_resolve.return_value = ResolvedResource(
+            name="bluesky",
+            resource_type=ResourceType.SKILL,
+            path=Path("bluesky"),
+            source=ResourceSource.REPO_ROOT,
+        )
+
+        result = runner.invoke(app, ["testuser/skills/bluesky"])
+
+        # Should call resolver first
+        mock_resolve.assert_called_once()
+        # Should use the resolved path
+        mock_fetch_from_repo.assert_called_once()
+        call_kwargs = mock_fetch_from_repo.call_args.kwargs
+        assert call_kwargs.get("source_path") == Path("bluesky")
+
+    @patch("agr.cli.run.shutil.which", return_value="/usr/bin/claude")
+    @patch("agr.cli.run.subprocess.run")
+    @patch("agr.cli.run.downloaded_repo")
+    @patch("agr.cli.run.resolve_remote_resource")
+    @patch("agr.cli.run.discover_runnable_resource")
+    @patch("agr.cli.run.fetch_resource_from_repo_dir")
+    @patch("agr.cli.run._build_local_path")
+    @patch("agr.cli.run._cleanup_resource")
+    def test_falls_back_to_discover_when_resolver_returns_none(
+        self, mock_cleanup, mock_build_path, mock_fetch_from_repo,
+        mock_discover, mock_resolve, mock_download, mock_subprocess, mock_which, tmp_path
+    ):
+        """Test that discover_runnable_resource is used when resolver returns None."""
+        mock_download.return_value.__enter__ = MagicMock(return_value=tmp_path)
+        mock_download.return_value.__exit__ = MagicMock(return_value=None)
+        mock_build_path.return_value = tmp_path / "_agrx_hello"
+
+        # Resolver doesn't find the resource
+        mock_resolve.return_value = None
+
+        # But discover_runnable_resource finds it
+        mock_discover.return_value = DiscoveryResult(
+            resources=[
+                DiscoveredResource(
+                    name="hello",
+                    resource_type=ResourceType.SKILL,
+                    path_segments=["hello"]
+                ),
+            ]
+        )
+
+        result = runner.invoke(app, ["testuser/hello"])
+
+        # Should call both resolver and discover
+        mock_resolve.assert_called_once()
+        mock_discover.assert_called_once()
+        # Should use the discovered resource (no source_path)
+        call_kwargs = mock_fetch_from_repo.call_args.kwargs
+        assert call_kwargs.get("source_path") is None
+
+    @patch("agr.cli.run.shutil.which", return_value="/usr/bin/claude")
+    @patch("agr.cli.run.subprocess.run")
+    @patch("agr.cli.run.downloaded_repo")
+    @patch("agr.cli.run.resolve_remote_resource")
+    @patch("agr.cli.run.fetch_resource_from_repo_dir")
+    @patch("agr.cli.run._build_local_path")
+    @patch("agr.cli.run._cleanup_resource")
+    def test_agr_toml_source_provides_source_path(
+        self, mock_cleanup, mock_build_path, mock_fetch_from_repo,
+        mock_resolve, mock_download, mock_subprocess, mock_which, tmp_path
+    ):
+        """Test that AGR_TOML source provides source_path to fetch."""
+        mock_download.return_value.__enter__ = MagicMock(return_value=tmp_path)
+        mock_download.return_value.__exit__ = MagicMock(return_value=None)
+        mock_build_path.return_value = tmp_path / "_agrx_myskill"
+
+        # Resolver finds via agr.toml
+        mock_resolve.return_value = ResolvedResource(
+            name="myskill",
+            resource_type=ResourceType.SKILL,
+            path=Path("resources/skills/myskill"),
+            source=ResourceSource.AGR_TOML,
+        )
+
+        result = runner.invoke(app, ["testuser/myrepo/myskill"])
+
+        mock_fetch_from_repo.assert_called_once()
+        call_kwargs = mock_fetch_from_repo.call_args.kwargs
+        assert call_kwargs.get("source_path") == Path("resources/skills/myskill")
+
+    @patch("agr.cli.run.shutil.which", return_value="/usr/bin/claude")
+    @patch("agr.cli.run.subprocess.run")
+    @patch("agr.cli.run.downloaded_repo")
+    @patch("agr.cli.run.resolve_remote_resource")
+    @patch("agr.cli.run.fetch_resource_from_repo_dir")
+    @patch("agr.cli.run._build_local_path")
+    @patch("agr.cli.run._cleanup_resource")
+    def test_claude_dir_source_does_not_provide_source_path(
+        self, mock_cleanup, mock_build_path, mock_fetch_from_repo,
+        mock_resolve, mock_download, mock_subprocess, mock_which, tmp_path
+    ):
+        """Test that CLAUDE_DIR source does not provide source_path (uses default paths)."""
+        mock_download.return_value.__enter__ = MagicMock(return_value=tmp_path)
+        mock_download.return_value.__exit__ = MagicMock(return_value=None)
+        mock_build_path.return_value = tmp_path / "_agrx_commit"
+
+        # Resolver finds in .claude/ directory
+        mock_resolve.return_value = ResolvedResource(
+            name="commit",
+            resource_type=ResourceType.SKILL,
+            path=Path(".claude/skills/commit"),
+            source=ResourceSource.CLAUDE_DIR,
+        )
+
+        result = runner.invoke(app, ["testuser/commit"])
+
+        mock_fetch_from_repo.assert_called_once()
+        call_kwargs = mock_fetch_from_repo.call_args.kwargs
+        # CLAUDE_DIR uses standard paths, so no source_path needed
+        assert call_kwargs.get("source_path") is None
+
+    @patch("agr.cli.run.downloaded_repo")
+    @patch("agr.cli.run.resolve_remote_resource")
+    @patch("agr.cli.run.discover_runnable_resource")
+    def test_error_message_mentions_repo_root_search(
+        self, mock_discover, mock_resolve, mock_download, tmp_path
+    ):
+        """Test that error message mentions repo root was searched."""
+        mock_download.return_value.__enter__ = MagicMock(return_value=tmp_path)
+        mock_download.return_value.__exit__ = MagicMock(return_value=None)
+
+        # Neither finds the resource
+        mock_resolve.return_value = None
+        mock_discover.return_value = DiscoveryResult(resources=[])
+
+        result = runner.invoke(app, ["testuser/nonexistent"])
+
+        assert result.exit_code == 1
+        assert "not found" in result.output.lower()
+        assert "repo root" in result.output.lower()

@@ -20,6 +20,7 @@ from agr.cli.common import (
 )
 from agr.exceptions import AgrError, MultipleResourcesFoundError
 from agr.fetcher import RESOURCE_CONFIGS, ResourceType, downloaded_repo, fetch_resource, fetch_resource_from_repo_dir
+from agr.resolver import resolve_remote_resource, ResourceSource
 
 # Deprecated subcommand names
 DEPRECATED_SUBCOMMANDS = {"skill", "command"}
@@ -196,29 +197,44 @@ def _run_resource_unified(
     try:
         with fetch_spinner():
             with downloaded_repo(username, repo_name) as repo_dir:
-                discovery = discover_runnable_resource(repo_dir, name, path_segments)
+                # First, try resolver which checks agr.toml, .claude/, and auto-discovers in repo
+                resolved = resolve_remote_resource(repo_dir, name)
 
-                if discovery.is_empty:
-                    console.print(
-                        f"[red]Error: Resource '{name}' not found in {username}/{repo_name}.[/red]\n"
-                        f"Searched in: skills, commands.",
-                    )
-                    raise typer.Exit(1)
+                detected_type = None
+                source_path = None
 
-                if discovery.is_ambiguous:
-                    # Build helpful example commands for each type found
-                    ref = f"{username}/{name}" if repo_name == DEFAULT_REPO_NAME else f"{username}/{repo_name}/{name}"
-                    examples = "\n".join(
-                        f"  agrx {ref} --type {t}" for t in discovery.found_types
-                    )
-                    console.print(
-                        f"[red]Error: Resource '{name}' found in multiple types: {', '.join(discovery.found_types)}.[/red]\n"
-                        f"Use --type to specify which one to run:\n{examples}",
-                    )
-                    raise typer.Exit(1)
+                if resolved and resolved.resource_type in (ResourceType.SKILL, ResourceType.COMMAND):
+                    # Found via resolver (agr.toml, .claude/, or auto-discovered)
+                    detected_type = resolved.resource_type
+                    # Use source_path for AGR_TOML and REPO_ROOT sources
+                    if resolved.source in (ResourceSource.AGR_TOML, ResourceSource.REPO_ROOT):
+                        source_path = resolved.path
+                else:
+                    # Fallback: use discover_runnable_resource for .claude/ paths with path_segments
+                    discovery = discover_runnable_resource(repo_dir, name, path_segments)
 
-                # Use the discovered resource type
-                detected_type = discovery.resources[0].resource_type
+                    if discovery.is_empty:
+                        console.print(
+                            f"[red]Error: Resource '{name}' not found in {username}/{repo_name}.[/red]\n"
+                            f"Searched in: agr.toml, skills, commands, and repo root.",
+                        )
+                        raise typer.Exit(1)
+
+                    if discovery.is_ambiguous:
+                        # Build helpful example commands for each type found
+                        ref = f"{username}/{name}" if repo_name == DEFAULT_REPO_NAME else f"{username}/{repo_name}/{name}"
+                        examples = "\n".join(
+                            f"  agrx {ref} --type {t}" for t in discovery.found_types
+                        )
+                        console.print(
+                            f"[red]Error: Resource '{name}' found in multiple types: {', '.join(discovery.found_types)}.[/red]\n"
+                            f"Use --type to specify which one to run:\n{examples}",
+                        )
+                        raise typer.Exit(1)
+
+                    detected_type = discovery.resources[0].resource_type
+
+                # Use the detected resource type
                 config = RESOURCE_CONFIGS[detected_type]
                 resource_name = path_segments[-1]
                 prefixed_name = f"{AGRX_PREFIX}{resource_name}"
@@ -230,7 +246,8 @@ def _run_resource_unified(
 
                 # Fetch the resource from the already-downloaded repo
                 fetch_resource_from_repo_dir(
-                    repo_dir, name, path_segments, dest_dir, detected_type, overwrite=True
+                    repo_dir, name, path_segments, dest_dir, detected_type, overwrite=True,
+                    source_path=source_path,
                 )
 
                 # Rename to prefixed name to avoid conflicts
