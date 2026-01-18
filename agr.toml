@@ -18,4 +18,5 @@ dependencies = [
     {path = "resources/skills/anthropic/frontend-design", type = "skill"},
     {path = "./resources/skills/architecture-audit", type = "skill"},
     {handle = "dsjacobsen/golang-pro", type = "skill"},
+    {handle = "maragudk/skills/bluesky", type = "skill"},
 ]
