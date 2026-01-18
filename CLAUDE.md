@@ -4,8 +4,10 @@ agr and agrx should always be unified and synced.
 Always include in the plan to write tests for what is implemented
 
 
+
+
 Skills docs:
-https://agentskills.io/home
+https://agentskills.io/specification
 https://opencode.ai/docs/skills
 https://code.claude.com/docs/en/skills
 https://developers.openai.com/codex/skills

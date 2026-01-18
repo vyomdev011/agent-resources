@@ -3,7 +3,6 @@ dependencies = [
     {path = "resources/agents/anthropic/code-simplifier.md", type = "agent"},
     {path = "resources/commands/hello-world.md", type = "command"},
     {path = "resources/commands/docs.md", type = "command"},
-    {handle = "dsjacobsen/golang-pro", type = "skill"},
     {handle = "dsjacobsen/go-reviewer", type = "agent"},
     {path = "resources/skills/commit", type = "skill"},
     {path = "resources/skills/agr-support", type = "skill"},
@@ -17,5 +16,6 @@ dependencies = [
     {path = "resources/skills/product-strategy/ost", type = "skill"},
     {path = "resources/skills/anthropic/skill-creator", type = "skill"},
     {path = "resources/skills/anthropic/frontend-design", type = "skill"},
-    {path = "./resources/packages/python-dev", type = "package"},
+    {path = "./resources/skills/architecture-audit", type = "skill"},
+    {handle = "dsjacobsen/golang-pro", type = "skill"},
 ]
