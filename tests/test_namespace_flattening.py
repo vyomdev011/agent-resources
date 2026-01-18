@@ -301,6 +301,101 @@ class TestPackageExplodeFlattening:
         content = installed.read_text()
         assert "name: local:my-toolkit:helper" in content
 
+    def test_package_explode_nested_skills(self, tmp_path: Path, monkeypatch):
+        """Test that nested skills in packages are discovered and flattened correctly."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        # Create package with nested skill
+        pkg_dir = tmp_path / "packages" / "my-toolkit"
+        nested_skill = pkg_dir / "skills" / "category" / "helper"
+        nested_skill.mkdir(parents=True)
+        (nested_skill / "SKILL.md").write_text("# Nested Helper Skill")
+        (pkg_dir / "commands").mkdir()
+        (pkg_dir / "agents").mkdir()
+
+        result = runner.invoke(app, ["add", "./packages/my-toolkit", "--type", "package"])
+
+        assert result.exit_code == 0
+
+        # Verify nested skill installed with flattened name
+        installed = (
+            tmp_path / ".claude" / "skills" / "local:my-toolkit:category:helper" / "SKILL.md"
+        )
+        assert installed.exists()
+
+        # Verify SKILL.md name was updated
+        content = installed.read_text()
+        assert "name: local:my-toolkit:category:helper" in content
+
+    def test_package_explode_deeply_nested_skills(self, tmp_path: Path, monkeypatch):
+        """Test that skills nested 2+ levels deep in packages are discovered."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        # Create package with deeply nested skill
+        pkg_dir = tmp_path / "packages" / "deep-toolkit"
+        deep_skill = pkg_dir / "skills" / "level1" / "level2" / "deep-skill"
+        deep_skill.mkdir(parents=True)
+        (deep_skill / "SKILL.md").write_text("# Deep Skill")
+        (pkg_dir / "commands").mkdir()
+        (pkg_dir / "agents").mkdir()
+
+        result = runner.invoke(app, ["add", "./packages/deep-toolkit", "--type", "package"])
+
+        assert result.exit_code == 0
+
+        # Verify deeply nested skill installed with flattened name
+        installed = (
+            tmp_path / ".claude" / "skills" / "local:deep-toolkit:level1:level2:deep-skill" / "SKILL.md"
+        )
+        assert installed.exists()
+
+        # Verify SKILL.md name was updated
+        content = installed.read_text()
+        assert "name: local:deep-toolkit:level1:level2:deep-skill" in content
+
+    def test_package_mixed_skill_depths(self, tmp_path: Path, monkeypatch):
+        """Test that both flat and nested skills in same package are handled."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()
+
+        # Create package with both flat and nested skills
+        pkg_dir = tmp_path / "packages" / "mixed-toolkit"
+
+        # Flat skill
+        flat_skill = pkg_dir / "skills" / "flat-skill"
+        flat_skill.mkdir(parents=True)
+        (flat_skill / "SKILL.md").write_text("# Flat Skill")
+
+        # Nested skill
+        nested_skill = pkg_dir / "skills" / "category" / "nested-skill"
+        nested_skill.mkdir(parents=True)
+        (nested_skill / "SKILL.md").write_text("# Nested Skill")
+
+        (pkg_dir / "commands").mkdir()
+        (pkg_dir / "agents").mkdir()
+
+        result = runner.invoke(app, ["add", "./packages/mixed-toolkit", "--type", "package"])
+
+        assert result.exit_code == 0
+
+        # Verify flat skill installed
+        flat_installed = (
+            tmp_path / ".claude" / "skills" / "local:mixed-toolkit:flat-skill" / "SKILL.md"
+        )
+        assert flat_installed.exists()
+        flat_content = flat_installed.read_text()
+        assert "name: local:mixed-toolkit:flat-skill" in flat_content
+
+        # Verify nested skill installed
+        nested_installed = (
+            tmp_path / ".claude" / "skills" / "local:mixed-toolkit:category:nested-skill" / "SKILL.md"
+        )
+        assert nested_installed.exists()
+        nested_content = nested_installed.read_text()
+        assert "name: local:mixed-toolkit:category:nested-skill" in nested_content
+
 
 class TestSyncLocalDependencyFlattening:
     """Tests for sync applying flattening to local skills."""

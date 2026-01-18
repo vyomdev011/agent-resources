@@ -227,20 +227,21 @@ def _explode_package(
     """
     counts = {"skills": 0, "commands": 0, "agents": 0}
 
-    # Skills - use flattened names
+    # Skills - use flattened names with recursive discovery for nested skills
     skills_dir = package_path / "skills"
     if skills_dir.is_dir():
-        for skill in skills_dir.iterdir():
-            if skill.is_dir() and (skill / "SKILL.md").exists():
-                flattened_name = compute_flattened_skill_name(username, [package_name, skill.name])
-                dest = base_path / "skills" / flattened_name
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                if dest.exists():
-                    shutil.rmtree(dest)
-                shutil.copytree(skill, dest)
-                # Update SKILL.md name field
-                update_skill_md_name(dest, flattened_name)
-                counts["skills"] += 1
+        for skill_md in skills_dir.rglob("SKILL.md"):
+            skill_dir = skill_md.parent
+            # Compute path segments relative to package skills dir
+            rel_parts = list(skill_dir.relative_to(skills_dir).parts)
+            flattened_name = compute_flattened_skill_name(username, [package_name] + rel_parts)
+            dest = base_path / "skills" / flattened_name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if dest.exists():
+                shutil.rmtree(dest)
+            shutil.copytree(skill_dir, dest)
+            update_skill_md_name(dest, flattened_name)
+            counts["skills"] += 1
 
     # Commands - keep existing structure (not affected by Claude Code discovery issue)
     cmds_dir = package_path / "commands"
@@ -366,7 +367,7 @@ def handle_add_local(
     if resource_type == "package":
         pkg_path = path
         has_resources = any([
-            any((pkg_path / "skills").glob("*/SKILL.md")) if (pkg_path / "skills").is_dir() else False,
+            any((pkg_path / "skills").rglob("SKILL.md")) if (pkg_path / "skills").is_dir() else False,
             any((pkg_path / "commands").glob("*.md")) if (pkg_path / "commands").is_dir() else False,
             any((pkg_path / "agents").glob("*.md")) if (pkg_path / "agents").is_dir() else False,
         ])
