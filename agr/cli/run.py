@@ -161,14 +161,18 @@ def _run_resource(
 
         console.print(f"[dim]Running {resource_type.value} '{name}'...[/dim]")
 
+        # Build prompt: /<prefixed_name> [prompt_or_args]
+        claude_prompt = f"/{prefixed_name}"
+        if prompt_or_args:
+            claude_prompt += f" {prompt_or_args}"
+
         if interactive:
-            # Start interactive Claude session
-            subprocess.run(["claude"], check=False)
+            # Start interactive Claude session with skill auto-invoked
+            subprocess.run([
+                "claude", "-p", claude_prompt,
+                "--dangerously-skip-permissions", "--continue"
+            ], check=False)
         else:
-            # Build prompt: /<prefixed_name> [prompt_or_args]
-            claude_prompt = f"/{prefixed_name}"
-            if prompt_or_args:
-                claude_prompt += f" {prompt_or_args}"
             subprocess.run(["claude", "-p", claude_prompt], check=False)
 
     except AgrError as e:
@@ -286,12 +290,18 @@ def _run_resource_unified(
         try:
             console.print(f"[dim]Running {detected_type.value} '{name}'...[/dim]")
 
+            # Build prompt: /<prefixed_name> [prompt_or_args]
+            claude_prompt = f"/{prefixed_name}"
+            if prompt_or_args:
+                claude_prompt += f" {prompt_or_args}"
+
             if interactive:
-                subprocess.run(["claude"], check=False)
+                # Start interactive Claude session with skill auto-invoked
+                subprocess.run([
+                    "claude", "-p", claude_prompt,
+                    "--dangerously-skip-permissions", "--continue"
+                ], check=False)
             else:
-                claude_prompt = f"/{prefixed_name}"
-                if prompt_or_args:
-                    claude_prompt += f" {prompt_or_args}"
                 subprocess.run(["claude", "-p", claude_prompt], check=False)
         finally:
             signal.signal(signal.SIGINT, original_sigint)

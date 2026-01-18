@@ -128,3 +128,109 @@ class TestDeprecatedAgrxCommands:
         mock_run.assert_called_once()
         call_args = mock_run.call_args
         assert call_args[0][2] == "my prompt"  # prompt_or_args
+
+
+class TestInteractiveMode:
+    """Tests for interactive mode (-i flag) behavior."""
+
+    @patch("agr.cli.run.shutil.which", return_value="/usr/bin/claude")
+    @patch("agr.cli.run.subprocess.run")
+    @patch("agr.cli.run.fetch_resource")
+    @patch("agr.cli.run._build_local_path")
+    @patch("agr.cli.run._cleanup_resource")
+    def test_interactive_mode_passes_dangerously_skip_permissions(
+        self, mock_cleanup, mock_build_path, mock_fetch, mock_subprocess, mock_which, tmp_path
+    ):
+        """Test that -i flag passes --dangerously-skip-permissions and --continue to Claude CLI."""
+        # Setup mocks
+        mock_build_path.return_value = tmp_path / "_agrx_hello-world.md"
+
+        result = runner.invoke(app, ["--type", "skill", "-i", "testuser/hello-world"])
+
+        # Check subprocess.run was called with the correct args
+        mock_subprocess.assert_called_once()
+        call_args = mock_subprocess.call_args[0][0]  # First positional arg is the command list
+
+        assert "claude" in call_args
+        assert "-p" in call_args
+        assert "/_agrx_hello-world" in call_args
+        assert "--dangerously-skip-permissions" in call_args
+        assert "--continue" in call_args
+
+    @patch("agr.cli.run.shutil.which", return_value="/usr/bin/claude")
+    @patch("agr.cli.run.subprocess.run")
+    @patch("agr.cli.run.fetch_resource")
+    @patch("agr.cli.run._build_local_path")
+    @patch("agr.cli.run._cleanup_resource")
+    def test_interactive_mode_includes_prompt_args(
+        self, mock_cleanup, mock_build_path, mock_fetch, mock_subprocess, mock_which, tmp_path
+    ):
+        """Test that -i flag includes prompt_or_args in the skill invocation."""
+        mock_build_path.return_value = tmp_path / "_agrx_hello-world.md"
+
+        result = runner.invoke(app, ["--type", "skill", "-i", "testuser/hello-world", "my custom args"])
+
+        mock_subprocess.assert_called_once()
+        call_args = mock_subprocess.call_args[0][0]
+
+        # The prompt should include both the skill and the args
+        prompt_idx = call_args.index("-p") + 1
+        prompt_value = call_args[prompt_idx]
+        assert "/_agrx_hello-world" in prompt_value
+        assert "my custom args" in prompt_value
+
+    @patch("agr.cli.run.shutil.which", return_value="/usr/bin/claude")
+    @patch("agr.cli.run.subprocess.run")
+    @patch("agr.cli.run.fetch_resource")
+    @patch("agr.cli.run._build_local_path")
+    @patch("agr.cli.run._cleanup_resource")
+    def test_non_interactive_mode_does_not_pass_continue(
+        self, mock_cleanup, mock_build_path, mock_fetch, mock_subprocess, mock_which, tmp_path
+    ):
+        """Test that non-interactive mode does not pass --continue or --dangerously-skip-permissions."""
+        mock_build_path.return_value = tmp_path / "_agrx_hello-world.md"
+
+        result = runner.invoke(app, ["--type", "skill", "testuser/hello-world"])
+
+        mock_subprocess.assert_called_once()
+        call_args = mock_subprocess.call_args[0][0]
+
+        assert "--continue" not in call_args
+        assert "--dangerously-skip-permissions" not in call_args
+
+    @patch("agr.cli.run.shutil.which", return_value="/usr/bin/claude")
+    @patch("agr.cli.run.subprocess.run")
+    @patch("agr.cli.run.downloaded_repo")
+    @patch("agr.cli.run.discover_runnable_resource")
+    @patch("agr.cli.run.fetch_resource_from_repo_dir")
+    @patch("agr.cli.run._build_local_path")
+    @patch("agr.cli.run._cleanup_resource")
+    def test_interactive_mode_unified_passes_correct_args(
+        self, mock_cleanup, mock_build_path, mock_fetch_from_repo,
+        mock_discover, mock_download, mock_subprocess, mock_which, tmp_path
+    ):
+        """Test that -i flag works correctly with auto-detected resource type."""
+        # Setup mocks for unified mode (auto-detection)
+        mock_download.return_value.__enter__ = MagicMock(return_value=tmp_path)
+        mock_download.return_value.__exit__ = MagicMock(return_value=None)
+        mock_build_path.return_value = tmp_path / "_agrx_hello.md"
+
+        mock_discover.return_value = DiscoveryResult(
+            resources=[
+                DiscoveredResource(
+                    name="hello",
+                    resource_type=ResourceType.SKILL,
+                    path_segments=["hello"]
+                ),
+            ]
+        )
+
+        result = runner.invoke(app, ["-i", "testuser/hello"])
+
+        mock_subprocess.assert_called_once()
+        call_args = mock_subprocess.call_args[0][0]
+
+        assert "claude" in call_args
+        assert "-p" in call_args
+        assert "--dangerously-skip-permissions" in call_args
+        assert "--continue" in call_args
