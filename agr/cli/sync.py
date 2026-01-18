@@ -76,27 +76,27 @@ def _discover_installed_namespaced_resources(
     """
     Discover all installed namespaced resources.
 
-    Returns set of dependency refs like "username/name".
+    Returns set of dependency refs in agr.toml format (slash-separated).
     For skills with flattened names like "kasperjunge:commit",
     returns "kasperjunge/commit".
+
+    Uses centralized handle module for consistent conversion.
     """
+    from agr.handle import skill_dirname_to_toml_handle
+
     installed = set()
 
-    # Check skills - now stored as flattened names like "kasperjunge:commit"
+    # Check skills - stored with flattened colon names like "kasperjunge:commit"
     skills_dir = base_path / "skills"
     if skills_dir.is_dir():
         for skill_dir in skills_dir.iterdir():
             if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
-                # Skill names are flattened with colons: kasperjunge:commit
-                # Convert to username/name format
-                parts = skill_dir.name.split(":")
-                if len(parts) >= 2:
-                    username = parts[0]
-                    # Join remaining parts with "/" for consistency with config refs
-                    name = "/".join(parts[1:])
-                    installed.add(f"{username}/{name}")
+                if ":" in skill_dir.name:
+                    # Use centralized conversion
+                    toml_handle = skill_dirname_to_toml_handle(skill_dir.name)
+                    installed.add(toml_handle)
 
-    # Check commands
+    # Check commands (nested format: username/name.md)
     commands_dir = base_path / "commands"
     if commands_dir.is_dir():
         for username_dir in commands_dir.iterdir():
@@ -104,7 +104,7 @@ def _discover_installed_namespaced_resources(
                 for cmd_file in username_dir.glob("*.md"):
                     installed.add(f"{username_dir.name}/{cmd_file.stem}")
 
-    # Check agents
+    # Check agents (nested format: username/name.md)
     agents_dir = base_path / "agents"
     if agents_dir.is_dir():
         for username_dir in agents_dir.iterdir():
@@ -136,18 +136,26 @@ def _remove_path(path: Path) -> None:
 def _remove_namespaced_resource(username: str, name: str, base_path: Path) -> None:
     """Remove a namespaced resource from disk.
 
-    For skills, expects name to potentially contain "/" which is converted to ":"
-    for the flattened directory name. For example, username="kasperjunge", name="commit"
+    For skills, uses centralized handle module for consistent conversion
+    from toml format (slash) to filesystem format (colon).
+    For example, username="kasperjunge", name="commit"
     will remove ".claude/skills/kasperjunge:commit/".
+
+    Args:
+        username: GitHub username
+        name: Resource name (may contain "/" for nested paths)
+        base_path: Base .claude directory path
     """
-    # Build flattened skill name (name might contain "/" for nested skills)
-    # Convert "/" to ":" for colon-namespaced directory
-    flattened_skill_name = f"{username}:{name.replace('/', ':')}"
+    from agr.handle import toml_handle_to_skill_dirname
+
+    # Build the full toml handle and convert to skill dirname
+    toml_handle = f"{username}/{name}"
+    skill_dirname = toml_handle_to_skill_dirname(toml_handle)
 
     # Try each resource type in order
     paths_to_try = [
-        # Skills use flattened names
-        base_path / "skills" / flattened_skill_name,
+        # Skills use flattened colon names
+        base_path / "skills" / skill_dirname,
         # Commands/agents use nested paths
         base_path / "commands" / username / f"{name}.md",
         base_path / "agents" / username / f"{name}.md",

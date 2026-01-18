@@ -18,7 +18,13 @@ app = typer.Typer(
 
 
 def _is_installed(dep: Dependency, base_path: Path, username: str) -> bool:
-    """Check if a dependency is installed in .claude/."""
+    """Check if a dependency is installed in .claude/.
+
+    Uses centralized handle module for consistent path construction
+    between add/remove/list operations.
+    """
+    from agr.handle import parse_handle, toml_handle_to_skill_dirname
+
     subdir = TYPE_TO_SUBDIR.get(dep.type, "skills")
 
     if dep.is_local and dep.path:
@@ -39,20 +45,19 @@ def _is_installed(dep: Dependency, base_path: Path, username: str) -> bool:
             return installed_path.is_file()
 
     elif dep.is_remote and dep.handle:
-        # Remote dependency - parse handle and check
-        parts = dep.handle.split("/")
-        if len(parts) >= 2:
-            remote_username = parts[0]
-            name = parts[-1]
+        # Remote dependency - use centralized handle parsing
+        parsed = parse_handle(dep.handle)
 
-            if dep.type == "skill":
-                # Skills use flattened colon-namespaced directory names
-                # e.g., .claude/skills/dsjacobsen:golang-pro/
-                flattened_name = compute_flattened_skill_name(remote_username, [name])
-                installed_path = base_path / subdir / flattened_name
-                return installed_path.is_dir() and (installed_path / "SKILL.md").exists()
-            else:
-                installed_path = base_path / subdir / remote_username / f"{name}.md"
+        if dep.type == "skill":
+            # Skills use flattened colon-namespaced directory names
+            # e.g., .claude/skills/dsjacobsen:golang-pro/
+            skill_dirname = toml_handle_to_skill_dirname(dep.handle)
+            installed_path = base_path / subdir / skill_dirname
+            return installed_path.is_dir() and (installed_path / "SKILL.md").exists()
+        else:
+            # Commands/agents use nested paths
+            if parsed.username:
+                installed_path = base_path / subdir / parsed.username / f"{parsed.simple_name}.md"
                 return installed_path.is_file()
 
     return False

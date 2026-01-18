@@ -352,12 +352,33 @@ def _get_namespaced_resource_path(
     username: str,
     resource_subdir: str,
     global_install: bool,
+    path_segments: list[str] | None = None,
 ) -> Path:
-    """Build the namespaced local path for a resource."""
+    """Build the namespaced local path for a resource.
+
+    Skills use flattened colon format (e.g., "skills/kasperjunge:seo").
+    Commands and agents use nested format (e.g., "commands/username/name.md").
+
+    Args:
+        name: Simple resource name
+        username: GitHub username
+        resource_subdir: "skills", "commands", or "agents"
+        global_install: Whether to use global ~/.claude/ path
+        path_segments: Optional full path segments for nested skills
+                       e.g., ["product-strategy", "growth-hacker"]
+    """
     dest = get_destination(resource_subdir, global_install)
     if resource_subdir == "skills":
-        return dest / username / name
+        # Skills use flattened colon format: skills/username:path:segments
+        if path_segments and len(path_segments) > 1:
+            # Nested skill - use full path segments
+            flattened_name = f"{username}:{':'.join(path_segments)}"
+        else:
+            # Simple skill - just username:name
+            flattened_name = f"{username}:{name}"
+        return dest / flattened_name
     else:
+        # Commands and agents use nested format
         return dest / username / f"{name}.md"
 
 
@@ -369,9 +390,12 @@ def _remove_from_agr_toml(
     """
     Remove a dependency from agr.toml after removing resource.
 
+    Uses centralized handle parsing for consistent matching between
+    slash format (agr.toml) and colon format (filesystem).
+
     Args:
-        name: Resource name
-        username: GitHub username (for building ref)
+        name: Resource name (can be simple name, slash format, or colon format)
+        username: GitHub username (for building ref if not in name)
         global_install: If True, don't update agr.toml
     """
     if global_install:
@@ -379,6 +403,7 @@ def _remove_from_agr_toml(
 
     try:
         from agr.config import find_config, AgrConfig
+        from agr.handle import parse_handle
 
         config_path = find_config()
         if not config_path:
@@ -386,26 +411,31 @@ def _remove_from_agr_toml(
 
         config = AgrConfig.load(config_path)
 
-        # Try to find and remove matching dependency
-        # Could be "username/name" or "username/repo/name"
-        refs_to_check = []
-        if username:
-            refs_to_check.append(f"{username}/{name}")
+        # Parse the input to normalize it
+        parsed_input = parse_handle(name)
+        effective_username = parsed_input.username or username
 
-        # Also check all handles ending with /name
-        for dep in config.dependencies:
-            if dep.handle and dep.handle.endswith(f"/{name}"):
-                refs_to_check.append(dep.handle)
-
+        # Find matching dependency using normalized comparison
         removed = False
-        for ref in refs_to_check:
-            if config.remove_by_handle(ref):
+        for dep in list(config.dependencies):
+            if not dep.handle:
+                continue
+
+            # Use the matches_toml_handle method for consistent matching
+            if parsed_input.matches_toml_handle(dep.handle):
+                # Double-check username match if we have one
+                if effective_username:
+                    parsed_dep = parse_handle(dep.handle)
+                    if parsed_dep.username and parsed_dep.username != effective_username:
+                        continue
+
+                config.remove_by_handle(dep.handle)
                 removed = True
                 break
 
         if removed:
             config.save(config_path)
-            console.print(f"[dim]Removed from agr.toml[/dim]")
+            console.print("[dim]Removed from agr.toml[/dim]")
     except Exception:
         # Don't fail the remove if agr.toml update fails
         pass
@@ -419,20 +449,39 @@ def _find_namespaced_resource(
     """
     Search all namespaced directories for a resource.
 
+    Skills use flattened colon format (e.g., "kasperjunge:seo").
+    Commands and agents use nested format (e.g., "username/name.md").
+
     Returns:
         Tuple of (path, username) if found, (None, None) otherwise
     """
+    from agr.handle import parse_handle
+
     dest = get_destination(resource_subdir, global_install)
     if not dest.exists():
         return None, None
 
-    for username_dir in dest.iterdir():
-        if username_dir.is_dir():
-            if resource_subdir == "skills":
-                resource_path = username_dir / name
+    if resource_subdir == "skills":
+        # Skills use flattened colon format at top level
+        for item in dest.iterdir():
+            if not item.is_dir():
+                continue
+
+            # Check flattened format: username:name or username:nested:name
+            if ":" in item.name and (item / "SKILL.md").exists():
+                parsed = parse_handle(item.name)
+                if parsed.simple_name == name:
+                    return item, parsed.username
+
+            # Legacy nested format: username/name
+            elif not ":" in item.name:
+                resource_path = item / name
                 if resource_path.is_dir() and (resource_path / "SKILL.md").exists():
-                    return resource_path, username_dir.name
-            else:
+                    return resource_path, item.name
+    else:
+        # Commands and agents use nested format: username/name.md
+        for username_dir in dest.iterdir():
+            if username_dir.is_dir():
                 resource_path = username_dir / f"{name}.md"
                 if resource_path.is_file():
                     return resource_path, username_dir.name
@@ -446,6 +495,7 @@ def handle_remove_resource(
     resource_subdir: str,
     global_install: bool = False,
     username: str | None = None,
+    path_segments: list[str] | None = None,
 ) -> None:
     """
     Generic handler for removing any resource type.
@@ -459,15 +509,25 @@ def handle_remove_resource(
         resource_subdir: Destination subdirectory (e.g., "skills", "commands", "agents")
         global_install: If True, remove from ~/.claude/, else from ./.claude/
         username: GitHub username for namespaced path lookup
+        path_segments: Optional full path segments for nested skills
     """
     local_path = None
     found_username = username
 
     # Try namespaced path first if username provided
     if username:
-        namespaced_path = _get_namespaced_resource_path(name, username, resource_subdir, global_install)
+        # Try new flattened format first (skills/username:name)
+        namespaced_path = _get_namespaced_resource_path(
+            name, username, resource_subdir, global_install, path_segments
+        )
         if namespaced_path.exists():
             local_path = namespaced_path
+        elif resource_subdir == "skills":
+            # Fallback to legacy nested format (skills/username/name)
+            dest = get_destination(resource_subdir, global_install)
+            legacy_path = dest / username / name
+            if legacy_path.is_dir() and (legacy_path / "SKILL.md").exists():
+                local_path = legacy_path
 
     # If not found and no username, search all namespaced directories
     if local_path is None and username is None:
@@ -643,40 +703,33 @@ def discover_local_resource_type(name: str, global_install: bool) -> DiscoveryRe
     """
     Discover which resource types exist locally for a given name.
 
-    Searches both namespaced paths (.claude/skills/username/name/) and
-    flat paths (.claude/skills/name/) for backward compatibility.
+    Searches namespaced paths (flattened colon format for skills, nested for commands/agents)
+    and flat paths (.claude/skills/name/) for backward compatibility.
 
     The name can be:
     - Simple name: "commit" - searches all usernames and flat path
     - Full ref: "kasperjunge/commit" - searches specific username only
+    - Colon format: "kasperjunge:commit" - parsed and searched
 
     Args:
-        name: Resource name or full ref (username/name) to search for
+        name: Resource name, full ref (username/name), or colon format to search for
         global_install: If True, search in ~/.claude/, else in ./.claude/
 
     Returns:
         DiscoveryResult with list of found resource types
     """
+    from agr.handle import parse_handle
+
     result = DiscoveryResult()
     base_path = get_base_path(global_install)
+    parsed = parse_handle(name)
 
-    # Check if name is a full ref (username/name)
-    if "/" in name:
-        parts = name.split("/")
-        if len(parts) == 2:
-            username, resource_name = parts
-            # Search only in specific namespace
-            _discover_in_namespace(
-                base_path, resource_name, username, result
-            )
-            return result
-
-    # Simple name - search both namespaced and flat paths
-    # First check namespaced paths (.claude/skills/*/name/)
+    # Search namespaced paths (handles both flattened skills and nested commands/agents)
+    # This function now properly parses the input to extract username and simple_name
     _discover_in_all_namespaces(base_path, name, result)
 
     # Then check flat paths (.claude/skills/name/) for backward compat
-    _discover_in_flat_path(base_path, name, result)
+    _discover_in_flat_path(base_path, parsed.simple_name, result)
 
     return result
 
@@ -687,9 +740,16 @@ def _discover_in_namespace(
     username: str,
     result: DiscoveryResult,
 ) -> None:
-    """Discover resources in a specific username namespace."""
-    # Check for skill
-    skill_path = base_path / "skills" / username / name
+    """Discover resources in a specific username namespace.
+
+    Skills use flattened colon format (e.g., "kasperjunge:seo").
+    Commands and agents use nested format (e.g., "username/name.md").
+    """
+    from agr.handle import ParsedHandle
+
+    # Check for skill (flattened colon format)
+    flattened_skill_name = f"{username}:{name}"
+    skill_path = base_path / "skills" / flattened_skill_name
     if skill_path.is_dir() and (skill_path / "SKILL.md").exists():
         result.resources.append(
             DiscoveredResource(
@@ -699,8 +759,20 @@ def _discover_in_namespace(
                 username=username,
             )
         )
+    else:
+        # Fallback: check legacy nested format for backward compat
+        legacy_skill_path = base_path / "skills" / username / name
+        if legacy_skill_path.is_dir() and (legacy_skill_path / "SKILL.md").exists():
+            result.resources.append(
+                DiscoveredResource(
+                    name=name,
+                    resource_type=ResourceType.SKILL,
+                    path_segments=[name],
+                    username=username,
+                )
+            )
 
-    # Check for command
+    # Check for command (nested format)
     command_path = base_path / "commands" / username / f"{name}.md"
     if command_path.is_file():
         result.resources.append(
@@ -712,7 +784,7 @@ def _discover_in_namespace(
             )
         )
 
-    # Check for agent
+    # Check for agent (nested format)
     agent_path = base_path / "agents" / username / f"{name}.md"
     if agent_path.is_file():
         result.resources.append(
@@ -730,51 +802,86 @@ def _discover_in_all_namespaces(
     name: str,
     result: DiscoveryResult,
 ) -> None:
-    """Discover resources across all username namespaces."""
-    # Check skills namespaces
+    """Discover resources across all username namespaces.
+
+    Skills are stored in flattened colon format (e.g., "kasperjunge:seo").
+    Commands and agents use nested directory format (e.g., "username/name.md").
+    """
+    from agr.handle import parse_handle
+
+    # Parse input to get components
+    parsed_input = parse_handle(name)
+    target_name = parsed_input.simple_name
+    target_username = parsed_input.username
+
+    # Check skills - stored with flattened colon names at top level
     skills_dir = base_path / "skills"
     if skills_dir.is_dir():
-        for username_dir in skills_dir.iterdir():
-            if username_dir.is_dir():
-                skill_path = username_dir / name
+        for item in skills_dir.iterdir():
+            if not item.is_dir():
+                continue
+
+            # Check for flattened colon format: "username:name" or "username:nested:name"
+            if ":" in item.name and (item / "SKILL.md").exists():
+                parsed_dir = parse_handle(item.name)
+                # Match if names equal and username matches (if specified)
+                if parsed_dir.simple_name == target_name:
+                    if target_username is None or parsed_dir.username == target_username:
+                        result.resources.append(
+                            DiscoveredResource(
+                                name=target_name,
+                                resource_type=ResourceType.SKILL,
+                                path_segments=parsed_dir.path_segments,
+                                username=parsed_dir.username,
+                            )
+                        )
+            # Also check legacy nested format: username/name (backward compat)
+            elif not ":" in item.name:
+                skill_path = item / target_name
                 if skill_path.is_dir() and (skill_path / "SKILL.md").exists():
                     result.resources.append(
                         DiscoveredResource(
-                            name=name,
+                            name=target_name,
                             resource_type=ResourceType.SKILL,
-                            path_segments=[name],
-                            username=username_dir.name,
+                            path_segments=[target_name],
+                            username=item.name,
                         )
                     )
 
-    # Check commands namespaces
+    # Check commands namespaces (nested format: username/name.md)
     commands_dir = base_path / "commands"
     if commands_dir.is_dir():
         for username_dir in commands_dir.iterdir():
             if username_dir.is_dir():
-                command_path = username_dir / f"{name}.md"
+                # Skip if looking for specific username and this doesn't match
+                if target_username and username_dir.name != target_username:
+                    continue
+                command_path = username_dir / f"{target_name}.md"
                 if command_path.is_file():
                     result.resources.append(
                         DiscoveredResource(
-                            name=name,
+                            name=target_name,
                             resource_type=ResourceType.COMMAND,
-                            path_segments=[name],
+                            path_segments=[target_name],
                             username=username_dir.name,
                         )
                     )
 
-    # Check agents namespaces
+    # Check agents namespaces (nested format: username/name.md)
     agents_dir = base_path / "agents"
     if agents_dir.is_dir():
         for username_dir in agents_dir.iterdir():
             if username_dir.is_dir():
-                agent_path = username_dir / f"{name}.md"
+                # Skip if looking for specific username and this doesn't match
+                if target_username and username_dir.name != target_username:
+                    continue
+                agent_path = username_dir / f"{target_name}.md"
                 if agent_path.is_file():
                     result.resources.append(
                         DiscoveredResource(
-                            name=name,
+                            name=target_name,
                             resource_type=ResourceType.AGENT,
-                            path_segments=[name],
+                            path_segments=[target_name],
                             username=username_dir.name,
                         )
                     )
@@ -1007,21 +1114,25 @@ def handle_remove_unified(
     """
     Unified handler for removing any resource with auto-detection.
 
-    Supports both simple names ("commit") and full refs ("kasperjunge/commit").
-    Searches namespaced paths first, then falls back to flat paths.
+    Supports:
+    - Simple names: "commit"
+    - Full refs: "kasperjunge/commit" or "kasperjunge/repo/commit"
+    - Colon format: "kasperjunge:commit" (from filesystem)
+
+    Searches namespaced paths (flattened for skills, nested for commands/agents)
+    first, then falls back to flat paths.
 
     Args:
-        name: Resource name or full ref (username/name) to remove
+        name: Resource name, full ref, or colon format to remove
         resource_type: Optional explicit type ("skill", "command", "agent", "bundle")
         global_install: If True, remove from ~/.claude/, else from ./.claude/
     """
-    # Parse if name is a full ref
-    parsed_username = None
-    resource_name = name
-    if "/" in name:
-        parts = name.split("/")
-        if len(parts) == 2:
-            parsed_username, resource_name = parts
+    from agr.handle import parse_handle
+
+    # Parse the name using centralized handle parsing
+    parsed = parse_handle(name)
+    parsed_username = parsed.username
+    resource_name = parsed.simple_name
 
     # If explicit type provided, delegate to specific handler
     if resource_type:
@@ -1045,6 +1156,7 @@ def handle_remove_unified(
         return
 
     # Auto-detect type from local files
+    # Pass the original name to preserve any username/format info for discovery
     discovery = discover_local_resource_type(name, global_install)
 
     if discovery.is_empty:
@@ -1077,6 +1189,7 @@ def handle_remove_unified(
         RESOURCE_CONFIGS[resource.resource_type].dest_subdir,
         global_install,
         username=username,
+        path_segments=resource.path_segments,
     )
 
 
