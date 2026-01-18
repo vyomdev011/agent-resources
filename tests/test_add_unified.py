@@ -44,8 +44,9 @@ class TestAddUnifiedCommand:
         call_args = mock_fetch.call_args
         assert call_args[0][4] == ResourceType.SKILL  # resource_type argument
 
+    @patch("agr.cli.common._add_to_agr_toml")
     @patch("agr.cli.common.fetch_resource")
-    def test_explicit_type_skill(self, mock_fetch):
+    def test_explicit_type_skill(self, mock_fetch, mock_add_toml):
         """Test that --type skill fetches a skill."""
         result = runner.invoke(app, ["add", "--type", "skill", "testuser/hello-world"])
 
@@ -53,8 +54,9 @@ class TestAddUnifiedCommand:
         call_args = mock_fetch.call_args
         assert call_args[0][5] == ResourceType.SKILL  # resource_type is 6th positional arg
 
+    @patch("agr.cli.common._add_to_agr_toml")
     @patch("agr.cli.common.fetch_resource")
-    def test_explicit_type_command(self, mock_fetch):
+    def test_explicit_type_command(self, mock_fetch, mock_add_toml):
         """Test that --type command fetches a command."""
         result = runner.invoke(app, ["add", "--type", "command", "testuser/hello"])
 
@@ -62,8 +64,9 @@ class TestAddUnifiedCommand:
         call_args = mock_fetch.call_args
         assert call_args[0][5] == ResourceType.COMMAND
 
+    @patch("agr.cli.common._add_to_agr_toml")
     @patch("agr.cli.common.fetch_resource")
-    def test_explicit_type_agent(self, mock_fetch):
+    def test_explicit_type_agent(self, mock_fetch, mock_add_toml):
         """Test that --type agent fetches an agent."""
         result = runner.invoke(app, ["add", "--type", "agent", "testuser/hello-agent"])
 
@@ -71,8 +74,9 @@ class TestAddUnifiedCommand:
         call_args = mock_fetch.call_args
         assert call_args[0][5] == ResourceType.AGENT
 
+    @patch("agr.cli.common._add_to_agr_toml")
     @patch("agr.cli.common.fetch_bundle")
-    def test_explicit_type_bundle(self, mock_fetch):
+    def test_explicit_type_bundle(self, mock_fetch, mock_add_toml):
         """Test that --type bundle fetches a bundle."""
         from agr.fetcher import BundleInstallResult
         mock_fetch.return_value = BundleInstallResult(installed_skills=["test"])
@@ -82,8 +86,9 @@ class TestAddUnifiedCommand:
         mock_fetch.assert_called_once()
 
     # Tests for --type AFTER resource reference (common user pattern)
+    @patch("agr.cli.common._add_to_agr_toml")
     @patch("agr.cli.common.fetch_resource")
-    def test_explicit_type_after_ref_skill(self, mock_fetch):
+    def test_explicit_type_after_ref_skill(self, mock_fetch, mock_add_toml):
         """Test that 'agr add ref --type skill' works (type after resource)."""
         result = runner.invoke(app, ["add", "testuser/hello-world", "--type", "skill"])
 
@@ -91,8 +96,9 @@ class TestAddUnifiedCommand:
         call_args = mock_fetch.call_args
         assert call_args[0][5] == ResourceType.SKILL
 
+    @patch("agr.cli.common._add_to_agr_toml")
     @patch("agr.cli.common.fetch_resource")
-    def test_explicit_type_after_ref_command(self, mock_fetch):
+    def test_explicit_type_after_ref_command(self, mock_fetch, mock_add_toml):
         """Test that 'agr add ref --type command' works (type after resource)."""
         result = runner.invoke(app, ["add", "testuser/hello", "--type", "command"])
 
@@ -100,8 +106,9 @@ class TestAddUnifiedCommand:
         call_args = mock_fetch.call_args
         assert call_args[0][5] == ResourceType.COMMAND
 
+    @patch("agr.cli.common._add_to_agr_toml")
     @patch("agr.cli.common.fetch_resource")
-    def test_explicit_type_after_ref_agent(self, mock_fetch):
+    def test_explicit_type_after_ref_agent(self, mock_fetch, mock_add_toml):
         """Test that 'agr add ref --type agent' works (type after resource)."""
         result = runner.invoke(app, ["add", "testuser/hello-agent", "--type", "agent"])
 
@@ -109,8 +116,9 @@ class TestAddUnifiedCommand:
         call_args = mock_fetch.call_args
         assert call_args[0][5] == ResourceType.AGENT
 
+    @patch("agr.cli.common._add_to_agr_toml")
     @patch("agr.cli.common.fetch_resource")
-    def test_explicit_type_short_flag_after_ref(self, mock_fetch):
+    def test_explicit_type_short_flag_after_ref(self, mock_fetch, mock_add_toml):
         """Test that 'agr add ref -t command' works (short flag after resource)."""
         result = runner.invoke(app, ["add", "testuser/hello", "-t", "command"])
 
@@ -385,8 +393,9 @@ class TestAddNamespacedAndToml:
         dep = config.get_by_handle("kasperjunge/custom-repo/commit")
         assert dep is not None
 
+    @patch("agr.cli.common._add_to_agr_toml")
     @patch("agr.cli.common.fetch_resource")
-    def test_explicit_type_installs_to_namespaced_path(self, mock_fetch, tmp_path, monkeypatch):
+    def test_explicit_type_installs_to_namespaced_path(self, mock_fetch, mock_add_toml, tmp_path, monkeypatch):
         """Test that explicit --type still installs to namespaced path."""
         monkeypatch.chdir(tmp_path)
         (tmp_path / ".git").mkdir()
